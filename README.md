@@ -1,5 +1,6 @@
 add the SegMamba model to the training framework:
-to be attention:
+
+attention:
 - you should first install causal_conv1d(1.0.0) and mamba-ssm(1.2.0) 
 - SegMamba: https://github.com/ge-xing/SegMamba
 
@@ -14,7 +15,7 @@ python scripts/seg_3d/seg_3d_train.py\
     --num_workers 1 \
     --batch_size 3 \
     --epochs 60  \
-    --val_check_interval 0.5 \
+    --val_check_interval 0.15 \
     --seed 42
 ```
 mydata_path: /workdir2t/cn24/data/EchoNet-Dynamic/
