@@ -50,8 +50,7 @@ def parse_args():
     parser.add_argument('--checkpoint', type=str, default=None, help="Path to a checkpoint file (can be None or a string)")
     parser.add_argument('--pretrained_type', type=str, default='pl_full', choices=['pl_full', 'encoder'],
                         help="Type of pretraining to use ('pl_full' or 'encoder')")
-    # parser.add_argument('--collate_fn', type=str, default='self.detection_collate()',
-    #                    help="data collator")
+
 
     args = parser.parse_args()
     return args

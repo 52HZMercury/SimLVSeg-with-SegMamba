@@ -15,7 +15,7 @@ python scripts/seg_3d/seg_3d_train.py\
     --num_workers 1 \
     --batch_size 3 \
     --epochs 60  \
-    --val_check_interval 0.15 \
+    --val_check_interval 0.25 \
     --seed 42
 ```
 mydata_path: /workdir2t/cn24/data/EchoNet-Dynamic/

@@ -143,8 +143,8 @@ class MambaEncoder(nn.Module):
 
         self.downsample_layers = nn.ModuleList()  # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
-            # 加一层卷积
-            #nn.Conv3d(3, in_chans, kernel_size=1, stride=1,padding=0),
+            # 加一层卷积  上采样
+            #nn.Conv3d(in_chans, in_chans, kernel_size=1, stride=1,padding=0),
             nn.Conv3d(in_chans, dims[0], kernel_size=7, stride=2, padding=3),
         )
         self.downsample_layers.append(stem)

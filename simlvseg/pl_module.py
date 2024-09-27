@@ -171,9 +171,13 @@ class SegModule(BaseModule):
             self.parameters(), lr=3e-4,
             weight_decay=1e-5, amsgrad=True,
         )
-        
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(
-            optimizer, milestones=[45, 60], gamma=0.1,
-        )
+
+        # 调一调学习率
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        #     optimizer, milestones = [45, 60], gamma = 0.1
+        # )
+
         
         return [optimizer], [scheduler]
