@@ -168,16 +168,16 @@ class SegModule(BaseModule):
     def configure_optimizers(self):
 
         optimizer = torch.optim.AdamW(
-            self.parameters(), lr=3e-4,
+            self.parameters(), lr=1e-4,
             weight_decay=1e-5, amsgrad=True,
         )
 
         # 调一调学习率
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+        #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
 
-        # scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        #     optimizer, milestones = [45, 60], gamma = 0.1
-        # )
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, milestones = [45, 60], gamma = 0.1
+        )
 
         
         return [optimizer], [scheduler]
