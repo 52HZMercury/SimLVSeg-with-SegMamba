@@ -133,7 +133,7 @@ if __name__ == '__main__':
         val_check_interval=args.val_check_interval,
         log_every_n_steps=10,
         callbacks=[checkpoint_callback],
-        resume_from_checkpoint=args.checkpoint,
+        resume_from_checkpoint=args.checkpoint,precision=16
     )
 
     trainer.fit(model, dm)

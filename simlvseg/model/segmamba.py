@@ -18,7 +18,7 @@ from monai.networks.blocks.dynunet_block import UnetOutBlock
 from monai.networks.blocks.unetr_block import UnetrBasicBlock, UnetrUpBlock
 from mamba_ssm import Mamba
 import torch.nn.functional as F
-
+from utils.image_visualizer import ImageVisualizer
 
 class LayerNorm(nn.Module):
     r""" LayerNorm that supports two data formats: channels_last (default) or channels_first.
@@ -203,8 +203,8 @@ class MambaEncoder(nn.Module):
 class SegMamba(nn.Module):
     def __init__(
             self,
-            in_chans=1,
-            out_chans=13,
+            in_chans=3,
+            out_chans=1,
             depths=[2, 2, 2, 2],
             feat_size=[48, 96, 192, 384],
             drop_path_rate=0,
@@ -335,18 +335,101 @@ class SegMamba(nn.Module):
     def forward(self, x_in):
         outs = self.vit(x_in)
         enc1 = self.encoder1(x_in)
+        ex1 = enc1
+
         x2 = outs[0]
         enc2 = self.encoder2(x2)
+        ex2 = enc2
+
         x3 = outs[1]
         enc3 = self.encoder3(x3)
+        ex3 = enc3
+
         x4 = outs[2]
         enc4 = self.encoder4(x4)
+        ex4 = enc4
+
         enc_hidden = self.encoder5(outs[3])
         dec3 = self.decoder5(enc_hidden, enc4)
+        dx5 = dec3
+
         dec2 = self.decoder4(dec3, enc3)
+        dx4 = dec2
+
         dec1 = self.decoder3(dec2, enc2)
+        dx3 = dec1
+
         dec0 = self.decoder2(dec1, enc1)
+        dx2 = dec0
+
         out = self.decoder1(dec0)
+        dx1 = out
+
+        # (1,c,h,w,f)
+        visualizer = ImageVisualizer()
+
+        #visualizer.show_image(dx1[0, 0, :, :, 0], cmap='jet', save_path='/media/gx/code/data/cn24/program/SimLVSeg/visualization/image/decoder1.png')
+
+        vis_img = ex4
+        image_list = []
+        for c in range(vis_img.shape[1]):
+            c_img = vis_img[0, c, :, :, 0]
+            image_list.append(c_img)
+        visualizer.show_images(image_list, cmap='jet', save_path='/media/gx/code/data/cn24/program/SimLVSeg/visualization/image/encoder4.png')
 
         return self.out(out)
 
+if __name__ == "__main__":
+    # 初始化模型
+    # model = UNet3D().cuda(1)  # 或者使用 UNet3DSmall()
+    # model = OnlyUKAN3D().cuda(1)  # 或者使用 UNet3DSmall()
+
+    # 加载模型权重
+    # 加载 checkpoint 文件
+    checkpoint_path = r'/media/gx/code/data/cn24/program/SimLVSeg/lightning_logs/version_12/checkpoints/epoch=44-step=223784.ckpt'
+    #checkpoint = torch.load(checkpoint_path, map_location='cuda:0', weights_only=True)
+    checkpoint = torch.load(checkpoint_path, map_location='cuda:0')
+
+    # 获取 state_dict
+    state_dict = checkpoint['state_dict']
+
+    # 移除 'model.' 前缀
+    new_state_dict = {}
+    for key in state_dict:
+        new_key = key.replace("model.", "")  # 移除 'model.' 前缀
+        new_state_dict[new_key] = state_dict[key]
+
+    # 加载移除前缀后的 state_dict
+    model = SegMamba(in_chans=3,
+                    out_chans=1,
+                    depths=[2,2,2,2],
+                    feat_size=[48, 96, 192, 384])
+    model.load_state_dict(new_state_dict)
+
+    # 将模型加载到 GPU 0
+    model = model.cuda(0)
+
+    # 伪造输入数据：假设输入形状为 (batch_size=1, channels=3, depth=128, height=128, width=128)
+    # input = torch.randn(1, 3, 112, 112, 32).cuda(1)
+
+    # 使用真实数据
+    from utils.img2tensor import video_to_tensor
+
+    video_tensor = video_to_tensor(
+        r'/media/gx/code/data/cn24/data/EchoNet-Dynamic/Videos/0X1A0A263B22CCD966.avi')
+    input = video_tensor[:, :, :, :, 0:128].cuda(0)
+
+    print(input.shape)
+
+    input_tensor = input.float()
+    # 前向传播
+    output = model(input_tensor)
+
+    # from thop import profile
+    #
+    # flops, params = profile(model, inputs=(input,))
+    # print('Flops: ', flops, ', Params: ', params)
+    # print('FLOPs&Params: ' + 'GFLOPs: %.2f G, Params: %.2f MB' % (flops / 1e9, params / 1e6))
+
+    # 打印输出形状
+    print(f"输出形状: {output.shape}")
