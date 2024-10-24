@@ -12,11 +12,6 @@ from ..utils import (
     load_video,
 )
 
-transform = transforms.Compose([
-            transforms.Resize(130),
-            transforms.RandomCrop((128, 128)),    #需要进行同意大小，不然会报错
-            transforms.ToTensor(),
-])
 class Seg3DDataset(EchoDataset):
     approach = '2d+time'
     def __getitem__(self, idx):

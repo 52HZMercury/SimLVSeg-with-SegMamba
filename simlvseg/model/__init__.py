@@ -137,7 +137,8 @@ def get_model(
         model = SegMamba(in_chans=3,
                         out_chans=1,
                         depths=[2,2,2,2],
-                        feat_size=[48, 96, 192, 384])
+                        feat_size=[24, 48, 96, 192])
+                        #feat_size=[48, 96, 192, 384])
 
     else:
         raise NotImplementedError(f"{encoder_name} is not recognized ...")

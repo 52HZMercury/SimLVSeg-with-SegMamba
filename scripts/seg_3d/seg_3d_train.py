@@ -130,8 +130,8 @@ if __name__ == '__main__':
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         mode='max',
-        #monitor='val_dsc',
-        monitor='train_dsc',
+        monitor='val_dsc',
+        #monitor='train_dsc',
         verbose=True,
         save_last=True,
 
@@ -145,10 +145,11 @@ if __name__ == '__main__':
         # every_n_epochs=5
     )
 
+    # 32位精度
     trainer = pl.Trainer(gpus=1,max_epochs=args.epochs,
                         val_check_interval=args.val_check_interval,
                         log_every_n_steps=10,
-                        callbacks=[checkpoint_callback],precision=16)
+                        callbacks=[checkpoint_callback])
 
 
     trainer.fit(model, dm)

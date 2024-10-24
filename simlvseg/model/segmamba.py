@@ -18,7 +18,9 @@ from monai.networks.blocks.dynunet_block import UnetOutBlock
 from monai.networks.blocks.unetr_block import UnetrBasicBlock, UnetrUpBlock
 from mamba_ssm import Mamba
 import torch.nn.functional as F
-from utils.image_visualizer import ImageVisualizer
+from torchsummary import summary
+
+#from utils.image_visualizer import ImageVisualizer
 
 class LayerNorm(nn.Module):
     r""" LayerNorm that supports two data formats: channels_last (default) or channels_first.
@@ -200,6 +202,27 @@ class MambaEncoder(nn.Module):
         return x
 
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+# 论文：A Multilevel Multimodal Fusion Transformer for Remote Sensing Semantic Segmentation
+# 全网最全100➕即插即用模块GitHub地址：https://github.com/ai-dawang/PlugNPlay-Modules
+class SqueezeAndExcitation3D(nn.Module):
+    def __init__(self, channel, reduction=16, activation=nn.ReLU(inplace=True)):
+        super(SqueezeAndExcitation3D, self).__init__()
+        self.fc = nn.Sequential(
+            nn.Conv3d(channel, channel // reduction, kernel_size=1),
+            activation,
+            nn.Conv3d(channel // reduction, channel, kernel_size=1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        weighting = F.adaptive_avg_pool3d(x, 1)
+        weighting = self.fc(weighting)
+        y = x * weighting
+        return y
+
 class SegMamba(nn.Module):
     def __init__(
             self,
@@ -207,6 +230,8 @@ class SegMamba(nn.Module):
             out_chans=1,
             depths=[2, 2, 2, 2],
             feat_size=[48, 96, 192, 384],
+            # 将特征输出通道缩小为1/2
+            #feat_size=[24, 48, 96, 192],
             drop_path_rate=0,
             layer_scale_init_value=1e-6,
             hidden_size: int = 768,
@@ -224,6 +249,8 @@ class SegMamba(nn.Module):
         self.drop_path_rate = drop_path_rate
         self.feat_size = feat_size
         self.layer_scale_init_value = layer_scale_init_value
+        # 加的SqueezeAndExcitation3D
+        self.channel_att_d2 = SqueezeAndExcitation3D(24)
 
         self.spatial_dims = spatial_dims
         self.vit = MambaEncoder(in_chans,
@@ -324,7 +351,7 @@ class SegMamba(nn.Module):
             norm_name=norm_name,
             res_block=res_block,
         )
-        self.out = UnetOutBlock(spatial_dims=spatial_dims, in_channels=48, out_channels=self.out_chans)
+        self.out = UnetOutBlock(spatial_dims=spatial_dims, in_channels=24, out_channels=self.out_chans)
 
     def proj_feat(self, x):
         new_view = [x.size(0)] + self.proj_view_shape
@@ -362,27 +389,41 @@ class SegMamba(nn.Module):
         dec0 = self.decoder2(dec1, enc1)
         dx2 = dec0
 
-        out = self.decoder1(dec0)
+        # 新增一层
+        decT = self.channel_att_d2(dec0)
+
+        # origin
+        #out = self.decoder1(dec0)
+        
+        out = self.decoder1(decT)
         dx1 = out
 
+        # 进行可视化
         # (1,c,h,w,f)
-        visualizer = ImageVisualizer()
-
-        #visualizer.show_image(dx1[0, 0, :, :, 0], cmap='jet', save_path='/media/gx/code/data/cn24/program/SimLVSeg/visualization/image/decoder1.png')
-
-        vis_img = ex4
-        image_list = []
-        for c in range(vis_img.shape[1]):
-            c_img = vis_img[0, c, :, :, 0]
-            image_list.append(c_img)
-        visualizer.show_images(image_list, cmap='jet', save_path='/media/gx/code/data/cn24/program/SimLVSeg/visualization/image/encoder4.png')
-
+        # visualizer = ImageVisualizer()
+        #
+        # #visualizer.show_image(dx1[0, 0, :, :, 0], cmap='jet', save_path='/media/gx/code/data/cn24/program/SimLVSeg/visualization/image/decoder1.png')
+        #
+        # vis_img = dx2
+        # image_list = []
+        # for c in range(vis_img.shape[1]):
+        #     c_img = vis_img[0, c, :, :, 0]
+        #     image_list.append(c_img)
+        # visualizer.show_images(image_list, cmap='jet', save_path='/media/gx/code/data/cn24/program/SimLVSeg/visualization/image/att_decoder2.png')
+        #
         return self.out(out)
 
+
 if __name__ == "__main__":
-    # 初始化模型
-    # model = UNet3D().cuda(1)  # 或者使用 UNet3DSmall()
-    # model = OnlyUKAN3D().cuda(1)  # 或者使用 UNet3DSmall()
+    # 查看模型参数量
+    # model = SegMamba(in_chans=3,
+    #                  out_chans=1,
+    #                  depths=[2, 2, 2, 2],
+    #                  feat_size=[24, 48, 96, 192])
+    # # 将模型加载到 GPU 0
+    # model = model.cuda(0)
+    # summary(model, input_size=(3, 128, 128, 128))
+
 
     # 加载模型权重
     # 加载 checkpoint 文件
@@ -398,6 +439,11 @@ if __name__ == "__main__":
     for key in state_dict:
         new_key = key.replace("model.", "")  # 移除 'model.' 前缀
         new_state_dict[new_key] = state_dict[key]
+
+
+    # 初始化模型
+    # model = UNet3D().cuda(1)  # 或者使用 UNet3DSmall()
+    # model = OnlyUKAN3D().cuda(1)  # 或者使用 UNet3DSmall()
 
     # 加载移除前缀后的 state_dict
     model = SegMamba(in_chans=3,
