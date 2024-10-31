@@ -146,7 +146,7 @@ if __name__ == '__main__':
     )
 
     # 32位精度
-    trainer = pl.Trainer(gpus=1,max_epochs=args.epochs,
+    trainer = pl.Trainer(devices=[0], accelerator="gpu",max_epochs=args.epochs,
                         val_check_interval=args.val_check_interval,
                         log_every_n_steps=10,
                         callbacks=[checkpoint_callback])

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="24e190c8-f6f9-4935-940c-bfed87611a5e" name="heart">
+        <fileTransfer accessType="SFTP" host="202.115.73.14" port="64195" sshConfigId="07a78a7d-d4d5-4130-a3b5-a8cff289cda2" sshConfig="gx@202.115.73.14:64195 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

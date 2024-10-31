@@ -18,7 +18,7 @@ from monai.networks.blocks.dynunet_block import UnetOutBlock
 from monai.networks.blocks.unetr_block import UnetrBasicBlock, UnetrUpBlock
 from mamba_ssm import Mamba
 import torch.nn.functional as F
-from torchsummary import summary
+#from torchsummary import summary
 
 #from utils.image_visualizer import ImageVisualizer
 
@@ -201,10 +201,6 @@ class MambaEncoder(nn.Module):
         x = self.forward_features(x)
         return x
 
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 # 论文：A Multilevel Multimodal Fusion Transformer for Remote Sensing Semantic Segmentation
 # 全网最全100➕即插即用模块GitHub地址：https://github.com/ai-dawang/PlugNPlay-Modules
 class SqueezeAndExcitation3D(nn.Module):
@@ -223,6 +219,80 @@ class SqueezeAndExcitation3D(nn.Module):
         y = x * weighting
         return y
 
+# 论文：CM-UNet: Hybrid CNN-Mamba UNet for Remote Sensing Image Semantic Segmentation
+# 论文地址：https://arxiv.org/pdf/2405.10530
+class ChannelAttentionModule(nn.Module):
+    def __init__(self, in_channels, reduction=4):
+        super(ChannelAttentionModule, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool3d(1)
+        self.max_pool = nn.AdaptiveMaxPool3d(1)
+        self.fc = nn.Sequential(
+            nn.Conv3d(in_channels, in_channels // reduction, 1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv3d(in_channels // reduction, in_channels, 1, bias=False)
+        )
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = self.fc(self.avg_pool(x))
+        max_out = self.fc(self.max_pool(x))
+        out = avg_out + max_out
+        return self.sigmoid(out)
+
+class SpatialAttentionModule(nn.Module):
+    def __init__(self, kernel_size=7):
+        super(SpatialAttentionModule, self).__init__()
+        self.conv1 = nn.Conv3d(2, 1, kernel_size, padding=kernel_size//2, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        x = torch.cat([avg_out, max_out], dim=1)
+        x = self.conv1(x)
+        return self.sigmoid(x)
+
+class FusionConv(nn.Module):
+    def __init__(self, in_channels, out_channels, factor=4.0):
+        super(FusionConv, self).__init__()
+        dim = int(out_channels // factor)
+        self.down = nn.Conv3d(in_channels, dim, kernel_size=1, stride=1)
+        self.conv_3x3 = nn.Conv3d(dim, dim, kernel_size=3, stride=1, padding=1)
+        self.conv_5x5 = nn.Conv3d(dim, dim, kernel_size=5, stride=1, padding=2)
+        self.conv_7x7 = nn.Conv3d(dim, dim, kernel_size=7, stride=1, padding=3)
+        self.spatial_attention = SpatialAttentionModule()
+        self.channel_attention = ChannelAttentionModule(dim)
+        self.up = nn.Conv3d(dim, out_channels, kernel_size=1, stride=1)
+        self.down_2 = nn.Conv3d(in_channels, dim, kernel_size=1, stride=1)
+
+    def forward(self, x1, x2, x4):
+        # 在通道上拼起来
+        x_fused = torch.cat([x1, x2, x4], dim=1)
+        x_fused = self.down(x_fused)
+        x_fused_c = x_fused * self.channel_attention(x_fused)
+        x_3x3 = self.conv_3x3(x_fused)
+        x_5x5 = self.conv_5x5(x_fused)
+        x_7x7 = self.conv_7x7(x_fused)
+        x_fused_s = x_3x3 + x_5x5 + x_7x7
+        x_fused_s = x_fused_s * self.spatial_attention(x_fused_s)
+
+        x_out = self.up(x_fused_s + x_fused_c)
+
+        return x_out
+
+class MSAA(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(MSAA, self).__init__()
+        self.fusion_conv = FusionConv(in_channels * 3, out_channels)
+
+    def forward(self, x1, x2, x4, last=False):
+        # # x2 是从低到高，x4是从高到低的设计，x2传递语义信息，x4传递边缘问题特征补充
+        # x_1_2_fusion = self.fusion_1x2(x1, x2)
+        # x_1_4_fusion = self.fusion_1x4(x1, x4)
+        # x_fused = x_1_2_fusion + x_1_4_fusion
+        x_fused = self.fusion_conv(x1, x2, x4)
+        return x_fused
+
 class SegMamba(nn.Module):
     def __init__(
             self,
@@ -230,8 +300,6 @@ class SegMamba(nn.Module):
             out_chans=1,
             depths=[2, 2, 2, 2],
             feat_size=[48, 96, 192, 384],
-            # 将特征输出通道缩小为1/2
-            #feat_size=[24, 48, 96, 192],
             drop_path_rate=0,
             layer_scale_init_value=1e-6,
             hidden_size: int = 768,
@@ -250,7 +318,7 @@ class SegMamba(nn.Module):
         self.feat_size = feat_size
         self.layer_scale_init_value = layer_scale_init_value
         # 加的SqueezeAndExcitation3D
-        self.channel_att_d2 = SqueezeAndExcitation3D(24)
+        self.channel_att_d2 = SqueezeAndExcitation3D(16)
 
         self.spatial_dims = spatial_dims
         self.vit = MambaEncoder(in_chans,
@@ -351,7 +419,18 @@ class SegMamba(nn.Module):
             norm_name=norm_name,
             res_block=res_block,
         )
-        self.out = UnetOutBlock(spatial_dims=spatial_dims, in_channels=24, out_channels=self.out_chans)
+        # 加的MSAA层
+        self.msaa = MSAA(in_channels=16, out_channels=16)
+        # 定义定义转置卷积层 上采样
+        self.conv_transpose1 = nn.ConvTranspose3d(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0)
+        self.conv_transpose2 = nn.ConvTranspose3d(in_channels=64, out_channels=32, kernel_size=2, stride=2, padding=0)
+
+        # 定义卷积层，改变通道数
+        self.conv_layer_16_32 = nn.Conv3d(in_channels=16, out_channels=32, kernel_size=1, stride=1, padding=0)
+        self.conv_layer_32_64 = nn.Conv3d(in_channels=32, out_channels=64, kernel_size=1, stride=1, padding=0)
+        # 池化下采样
+        self.max_pool_layer = nn.MaxPool3d(kernel_size=2, stride=2)
+        self.out = UnetOutBlock(spatial_dims=spatial_dims, in_channels=16, out_channels=self.out_chans)
 
     def proj_feat(self, x):
         new_view = [x.size(0)] + self.proj_view_shape
@@ -362,40 +441,54 @@ class SegMamba(nn.Module):
     def forward(self, x_in):
         outs = self.vit(x_in)
         enc1 = self.encoder1(x_in)
-        ex1 = enc1
 
         x2 = outs[0]
         enc2 = self.encoder2(x2)
-        ex2 = enc2
 
         x3 = outs[1]
         enc3 = self.encoder3(x3)
-        ex3 = enc3
 
         x4 = outs[2]
         enc4 = self.encoder4(x4)
-        ex4 = enc4
+
+
+        enc2_modify = self.conv_transpose1(enc2)
+        enc3_modify = self.conv_transpose1(self.conv_transpose2(enc3))
+
+        x_mean = self.msaa(enc1, enc2_modify, enc3_modify)
+        # [4, 16, 128, 128, 128]
+
+        # x_in [4, 3, 128, 128, 128]
+        # enc1 [4, 16, 128, 128, 128]
+
+        # x2:  [4, 16, 64, 64, 64]
+        # enc2 [4, 32, 64, 64, 64]
+
+        # x3:  [4, 32, 32, 32, 32]
+        # enc3 [4, 64, 32, 32, 32]
+
+        # x4:  [4, 64, 16, 16, 16]
+        # enc4:[4, 128, 16, 16, 16]
+
+        enc2 = self.max_pool_layer(self.conv_layer_16_32(x_mean))
+        enc3 = self.max_pool_layer(self.conv_layer_32_64(enc2))
 
         enc_hidden = self.encoder5(outs[3])
         dec3 = self.decoder5(enc_hidden, enc4)
-        dx5 = dec3
 
         dec2 = self.decoder4(dec3, enc3)
-        dx4 = dec2
 
         dec1 = self.decoder3(dec2, enc2)
-        dx3 = dec1
 
         dec0 = self.decoder2(dec1, enc1)
-        dx2 = dec0
 
-        # 新增一层
-        decT = self.channel_att_d2(dec0)
+
+        # # 新增一层通道注意力
+        #decT = self.channel_att_d2(dec0)
+
 
         # origin
-        #out = self.decoder1(dec0)
-        
-        out = self.decoder1(decT)
+        out = self.decoder1(dec0)
         dx1 = out
 
         # 进行可视化

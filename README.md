@@ -14,12 +14,13 @@ python scripts/seg_3d/seg_3d_train.py\
     --encoder "SegMamba"\
     --frames 128 \
     --period 1 \
-    --num_workers 1 \
-    --batch_size 3 \
+    --num_workers 2 \
+    --batch_size 4 \
     --epochs 60  \
-    --val_check_interval 0.25 \
+    --val_check_interval 0.5 \
     --seed 42
 ```
+
 
 seg_3d_masking_train
 
@@ -38,4 +39,5 @@ python scripts/seg_3d/seg_3d_masking_train.py \
     --val_check_interval 0.5 \
     --seed 42
 ```
-mydata_path: /workdir2t/cn24/data/EchoNet-Dynamic/
+mydata_path: 7508: /workdir2t/cn24/data/EchoNet-Dynamic/ 
+             6419: /workdir1/echo_dataset/EchoNet-Dynamic 
