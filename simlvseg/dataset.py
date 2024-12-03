@@ -13,6 +13,7 @@ import random
 
 import numpy as np
 import skimage.draw
+import torch
 import torchvision
 
 from .utils import (
@@ -244,3 +245,5 @@ class EchoDataset(torchvision.datasets.VisionDataset):
         """Additional information to add at end of __repr__."""
         lines = ["Split: {split}"]
         return '\n'.join(lines).format(**self.__dict__)
+
+

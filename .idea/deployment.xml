@@ -2,6 +2,20 @@
 <project version="4">
   <component name="PublishConfigData" autoUpload="Always" serverName="heart" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
+      <paths name="gx@202.115.73.14:64195 password">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="gx@202.115.73.14:64195 password (2)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/pycharm_project_814" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="gx@202.115.73.20:7555 password">
         <serverdata>
           <mappings>
@@ -21,6 +35,9 @@
           <mappings>
             <mapping deploy="/workdir1/cn24/program/SimLVSeg" local="$PROJECT_DIR$" web="/" />
           </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/lightning_logs" />
+          </excludedPaths>
         </serverdata>
       </paths>
     </serverData>

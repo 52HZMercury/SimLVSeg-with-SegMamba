@@ -3,12 +3,81 @@ import os
 import copy
 import torch
 
+
+class CAMUSDataset(torch.utils.data.Dataset):
+    def __init__(self, data_dir, n_frames, mean, std):
+        self.data_dir = data_dir
+        self.n_frames = n_frames
+
+        self.patients = sorted(
+            [filename.split('_')[0] for filename in os.listdir(self.data_dir) if '_gt.npy' in filename])
+
+        self.mean = np.array(mean)
+        self.std = np.array(std)
+
+    def __len__(self):
+        return len(self.patients)
+
+    def __getitem__(self, idx):
+        patient = self.patients[idx]
+
+        a4c_seq = np.load(os.path.join(self.data_dir, f'{patient}_a4c_seq.npy'))
+        a4c_gt = np.load(os.path.join(self.data_dir, f'{patient}_a4c_gt.npy'))
+
+        a4c_seq = np.float32(a4c_seq) / 255.
+        a4c_gt = np.float32(a4c_gt)
+
+        if len(a4c_seq.shape) == 3:
+            a4c_seq = a4c_seq[..., np.newaxis] * np.ones((1, 1, 1, 3))
+
+        a4c_seq = (a4c_seq - self.mean) / self.std
+
+        if self.n_frames > a4c_seq.shape[0]:
+            # TYPE 1: MIRRORING
+            # a4c_seq = expand_and_mirror(a4c_seq, self.n_frames)
+            # tmp = np.zeros_like(a4c_seq)[...,0]
+            # tmp[:a4c_gt.shape[0]] = a4c_gt
+            # a4c_gt = tmp.copy()
+
+            # TYPE 2: PADDING TO ZERO
+            # tmp = np.zeros((self.n_frames, 112, 112, 3)).astype(a4c_seq.dtype)
+            # tmp[:a4c_seq.shape[0]] = a4c_seq
+            # a4c_seq = tmp.copy()
+            # tmp = np.zeros_like(a4c_seq)[..., 0]
+            # tmp[:a4c_gt.shape[0]] = a4c_gt
+            # a4c_gt = tmp.copy()
+
+            # TYPE 3:
+            a4c_seq = pad_array(a4c_seq, self.n_frames)
+            a4c_gt  = pad_array(a4c_gt,  self.n_frames)
+
+            # TYPE 4:
+            # a4c_seq = pad_array_with_images(a4c_seq, self.n_frames)
+            # a4c_gt  = pad_array(a4c_gt,  self.n_frames)
+
+            # TYPE 5:
+            # a4c_seq = pad_array_with_origin_images_seq(a4c_seq, self.n_frames)
+            # a4c_gt = pad_array_with_origin_images_gt(a4c_gt, self.n_frames)
+
+        assert a4c_seq.shape[0] == self.n_frames
+
+        # (F, H, W, C) --> (C, H, W, F)
+        a4c_seq = a4c_seq.transpose((3, 1, 2, 0))
+        a4c_gt = a4c_gt.transpose((1, 2, 0))
+
+        a4c_seq = np.float32(a4c_seq)
+        a4c_gt = np.float32(a4c_gt)
+
+        # 实际视频数据 标注数据 病人序号
+        return a4c_seq, a4c_gt, patient
+
+
 class CAMUSDatasetTest(torch.utils.data.Dataset):
     def __init__(self, data_dir, n_frames, mean, std):
         self.data_dir = data_dir
         self.n_frames = n_frames
 
-        self.patients = sorted([filename.split('_')[0] for filename in os.listdir(self.data_dir) if '_gt.npy' not in filename])
+        self.patients = sorted([filename.split('_')[0] for filename in os.listdir(self.data_dir) if '_gt.npy' in filename])
 
         self.mean = np.array(mean)
         self.std  = np.array(std)
@@ -49,9 +118,13 @@ class CAMUSDatasetTest(torch.utils.data.Dataset):
             # a4c_seq = pad_array(a4c_seq, self.n_frames)
             # a4c_gt  = pad_array(a4c_gt,  self.n_frames)
 
-            # TYPE 4: 
+            # TYPE 4:
             # a4c_seq = pad_array_with_images(a4c_seq, self.n_frames)
             # a4c_gt  = pad_array(a4c_gt,  self.n_frames)
+
+            # TYPE 5:
+            # a4c_seq = pad_array_with_origin_images_seq(a4c_seq, self.n_frames)
+            # a4c_gt = pad_array_with_origin_images_gt(a4c_gt, self.n_frames)
         
         assert a4c_seq.shape[0] == self.n_frames
 
@@ -62,6 +135,7 @@ class CAMUSDatasetTest(torch.utils.data.Dataset):
         a4c_seq = np.float32(a4c_seq)
         a4c_gt  = np.float32(a4c_gt)
 
+        # 实际视频数据 标注数据 病人序号
         return a4c_seq, a4c_gt, patient
 
 def expand_and_mirror(X, M):
@@ -158,3 +232,49 @@ def pad_array_with_images(X, M):
     padded_X = np.concatenate([pad_before_images, X, pad_after_images], axis=0)
     
     return padded_X
+
+
+def pad_array_with_origin_images_seq(X,M):
+    """
+    将输入数组 a4c_seq 的第一维扩展到 128，通过重复后三维数据实现。
+
+    参数:
+    a4c_seq (numpy.ndarray): 形状为 (22, 112, 112, 3) 的数组。
+
+    返回:
+    numpy.ndarray: 形状为 (128, 112, 112, 3) 的数组。
+    """
+    # 计算需要重复的次数
+    num_repeats = -(-M // X.shape[0])  # 向上取整
+
+    # 重复数组
+    repeated_array = np.tile(X, (num_repeats, 1, 1, 1))
+
+    # 截取前 target_length 个元素
+    padded_array = repeated_array[:M]
+
+    return padded_array
+
+
+def pad_array_with_origin_images_gt(X, M):
+    """
+    将输入数组 a4c_gt 的第一维扩展到指定的目标长度，通过重复后二维数据实现。
+
+    参数:
+    a4c_gt (numpy.ndarray): 形状为 (22, 112, 112) 的数组。
+    M (int): 目标长度，即扩展后的数组第一维的长度。
+
+    返回:
+    numpy.ndarray: 形状为 (M, 112, 112) 的数组。
+    """
+    # 计算需要重复的次数
+    num_repeats = -(-M // X.shape[0])  # 向上取整
+
+    # 重复数组
+    repeated_array = np.tile(X, (num_repeats, 1, 1))
+
+    # 截取前 M 个元素
+    padded_array = repeated_array[:M]
+
+    return padded_array
+

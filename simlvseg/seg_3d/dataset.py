@@ -3,9 +3,12 @@ import numpy as np
 import os
 import random
 import skimage.draw
+import torch
+import torchvision
 import torchvision.transforms as transforms
 import PIL.Image
 
+from .camus import CAMUSDataset
 from ..dataset import EchoDataset
 from ..utils import (
     get_optimum_set_of_frame_indexes,
@@ -224,3 +227,15 @@ class Seg3DDatasetTest(Seg3DDataset):
         video = video.transpose((1, 2, 3, 0))
         
         return video, target
+
+class Seg3DDatasetCamus(CAMUSDataset):
+    def __init__(self, data_dir, n_frames, mean, std):
+        super().__init__(data_dir, n_frames, mean, std)
+    def __getitem__(self, idx):
+        a4c_seq, a4c_gt, patient = super().__getitem__(idx)
+
+        data = a4c_seq
+        label = a4c_gt
+
+        # print(data.shape, label.shape)
+        return data, label

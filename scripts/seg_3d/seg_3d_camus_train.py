@@ -2,6 +2,7 @@ import os
 import sys
 
 
+
 sys.path.append(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir)
 )
@@ -16,7 +17,7 @@ from torch.utils.data import DataLoader
 
 from simlvseg.augmentation import get_augmentation
 from simlvseg.utils import set_seed
-from simlvseg.seg_3d.dataset import Seg3DDataset
+from simlvseg.seg_3d.dataset import Seg3DDatasetCamus
 from simlvseg.seg_3d.pl_module import Seg3DModule
 from simlvseg.seg_3d.preprocessing import get_preprocessing_for_training
 
@@ -59,45 +60,23 @@ class DataModule(pl.LightningDataModule):
     def __init__(self, augmentation, preprocessing):
         super().__init__()
         
-        print('Configuring train dataset ...')
-        self.train_dataset = Seg3DDataset(
+        print('Configuring dataset ...')
+        self.dataset = Seg3DDatasetCamus(
             args.data_path,
-            "train",
             args.frames,
-            args.period,
-            False,
-            preprocessing,
-            augmentation,
-            pct_train=args.pct_train,
+            args.mean,
+            args.std
         )
-        
-        print('Configuring val dataset ...')
-        self.val_dataset = Seg3DDataset(
-            args.data_path,
-            "val",
-            args.frames,
-            args.period,
-            False,
-            preprocessing,
-            None,
-            test=True,
-        )
-        
-        print('Configuring test dataset ...')
-        self.test_dataset = Seg3DDataset(
-            args.data_path,
-            "test",
-            args.frames,
-            args.period,
-            False,
-            preprocessing,
-            None,
-            test=True,
-        )
+        # 将数据集分割成训练集、验证集和测试集
+        train_size = int(0.8 * len(self.dataset))
+        valid_size = int(0.1 * len(self.dataset))
+        test_size = len(self.dataset) - train_size - valid_size
 
+        self.train_dataset, self.val_dataset, self.test_dataset = torch.utils.data.random_split(
+            self.dataset, [train_size, valid_size, test_size]
+        )
 
     def train_dataloader(self):
-
         return DataLoader(self.train_dataset, batch_size=args.batch_size, shuffle=True,
                           num_workers=args.num_workers, drop_last=True)
     
@@ -126,7 +105,8 @@ if __name__ == '__main__':
 
     model = Seg3DModule(args.encoder, args.checkpoint, args.pretrained_type)
 
-    dm = DataModule(augmentation, preprocessing)
+    # dm = DataModule(augmentation, preprocessing)
+    dm = DataModule(None,None)
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         mode='max',
@@ -138,16 +118,11 @@ if __name__ == '__main__':
         # 保存最佳
         save_top_k=1,
         save_weights_only=False,
-
-        # 每隔5个Epoch保存一次
-        # save_top_k=-1,
-        # save_weights_only=False,
-        # every_n_epochs=5
     )
 
     # 32位精度
     # 多卡并行变为ddp后，需要调高lr，倍数为对应显卡张数或根号倍 devices=[0, 1], strategy="ddp", sync_batchnorm=True,
-    trainer = pl.Trainer(accelerator="gpu", devices=[0], max_epochs=args.epochs,
+    trainer = pl.Trainer(accelerator="gpu", devices=[3], max_epochs=args.epochs,
                         val_check_interval=args.val_check_interval,
                         log_every_n_steps=10,
                         callbacks=[checkpoint_callback])

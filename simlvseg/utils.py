@@ -95,6 +95,7 @@ def load_video(filename: str) -> np.ndarray:
 
         # 缩放为128
         frame = cv2.resize(frame, (128,128))
+        # f h w c
         v[count, :, :] = frame
     
     return v

@@ -419,17 +419,17 @@ class SegMamba(nn.Module):
             norm_name=norm_name,
             res_block=res_block,
         )
-        # 加的MSAA层
-        self.msaa = MSAA(in_channels=16, out_channels=16)
-        # 定义定义转置卷积层 上采样
-        self.conv_transpose1 = nn.ConvTranspose3d(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0)
-        self.conv_transpose2 = nn.ConvTranspose3d(in_channels=64, out_channels=32, kernel_size=2, stride=2, padding=0)
-
-        # 定义卷积层，改变通道数
-        self.conv_layer_16_32 = nn.Conv3d(in_channels=16, out_channels=32, kernel_size=1, stride=1, padding=0)
-        self.conv_layer_32_64 = nn.Conv3d(in_channels=32, out_channels=64, kernel_size=1, stride=1, padding=0)
-        # 池化下采样
-        self.max_pool_layer = nn.MaxPool3d(kernel_size=2, stride=2)
+        # # 加的MSAA层
+        # self.msaa = MSAA(in_channels=16, out_channels=16)
+        # # 定义定义转置卷积层 上采样
+        # self.conv_transpose1 = nn.ConvTranspose3d(in_channels=32, out_channels=16, kernel_size=2, stride=2, padding=0)
+        # self.conv_transpose2 = nn.ConvTranspose3d(in_channels=64, out_channels=32, kernel_size=2, stride=2, padding=0)
+        #
+        # # 定义卷积层，改变通道数
+        # self.conv_layer_16_32 = nn.Conv3d(in_channels=16, out_channels=32, kernel_size=1, stride=1, padding=0)
+        # self.conv_layer_32_64 = nn.Conv3d(in_channels=32, out_channels=64, kernel_size=1, stride=1, padding=0)
+        # # 池化下采样
+        # self.max_pool_layer = nn.MaxPool3d(kernel_size=2, stride=2)
         self.out = UnetOutBlock(spatial_dims=spatial_dims, in_channels=16, out_channels=self.out_chans)
 
     def proj_feat(self, x):
@@ -452,10 +452,10 @@ class SegMamba(nn.Module):
         enc4 = self.encoder4(x4)
 
 
-        enc2_modify = self.conv_transpose1(enc2)
-        enc3_modify = self.conv_transpose1(self.conv_transpose2(enc3))
+        # enc2_modify = self.conv_transpose1(enc2)
+        # enc3_modify = self.conv_transpose1(self.conv_transpose2(enc3))
 
-        x_mean = self.msaa(enc1, enc2_modify, enc3_modify)
+        # x_mean = self.msaa(enc1, enc2_modify, enc3_modify)
         # [4, 16, 128, 128, 128]
 
         # x_in [4, 3, 128, 128, 128]
@@ -469,9 +469,9 @@ class SegMamba(nn.Module):
 
         # x4:  [4, 64, 16, 16, 16]
         # enc4:[4, 128, 16, 16, 16]
-
-        enc2 = self.max_pool_layer(self.conv_layer_16_32(x_mean))
-        enc3 = self.max_pool_layer(self.conv_layer_32_64(enc2))
+        
+        # enc2 = self.max_pool_layer(self.conv_layer_16_32(x_mean))
+        # enc3 = self.max_pool_layer(self.conv_layer_32_64(enc2))
 
         enc_hidden = self.encoder5(outs[3])
         dec3 = self.decoder5(enc_hidden, enc4)
