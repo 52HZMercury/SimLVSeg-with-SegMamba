@@ -55,26 +55,68 @@ def parse_args():
 
     args = parser.parse_args()
     return args
+def read_patient_names(file_path):
+    with open(file_path, 'r') as file:
+        patient_names = [line.strip() for line in file.readlines()]
+    return patient_names
 
 class DataModule(pl.LightningDataModule):
     def __init__(self, augmentation, preprocessing):
         super().__init__()
         
-        print('Configuring dataset ...')
-        self.dataset = Seg3DDatasetCamus(
+        # print('Configuring dataset ...')
+        # self.dataset = Seg3DDatasetCamus(
+        #     args.data_path,
+        #     args.frames,
+        #     args.mean,
+        #     args.std
+        # )
+
+        # # 将数据集分割成训练集、验证集和测试集
+        # train_size = int(0.7 * len(self.dataset))
+        # valid_size = int(0.1 * len(self.dataset))
+        # test_size = len(self.dataset) - train_size - valid_size
+        #
+        # self.train_dataset, self.val_dataset, self.test_dataset = torch.utils.data.random_split(
+        #     self.dataset, [train_size, valid_size, test_size]
+        # )
+
+        # 读取文件内容
+        train_patient_names = read_patient_names('scripts/camus/database_split/subgroup_training.txt')
+        val_patient_names = read_patient_names('scripts/camus/database_split/subgroup_validation.txt')
+        test_patient_names = read_patient_names('scripts/camus/database_split/subgroup_testing.txt')
+
+        print('Configuring train dataset ...')
+        # 训练数据集
+        self.train_dataset = Seg3DDatasetCamus(
             args.data_path,
             args.frames,
             args.mean,
-            args.std
+            args.std,
+            train_patient_names
         )
-        # 将数据集分割成训练集、验证集和测试集
-        train_size = int(0.8 * len(self.dataset))
-        valid_size = int(0.1 * len(self.dataset))
-        test_size = len(self.dataset) - train_size - valid_size
 
-        self.train_dataset, self.val_dataset, self.test_dataset = torch.utils.data.random_split(
-            self.dataset, [train_size, valid_size, test_size]
+        print('Configuring val dataset ...')
+        # 验证数据集
+        self.val_dataset = Seg3DDatasetCamus(
+            args.data_path,
+            args.frames,
+            args.mean,
+            args.std,
+            val_patient_names
         )
+
+        print('Configuring test dataset ...')
+        # 测试数据集
+        self.test_dataset = Seg3DDatasetCamus(
+            args.data_path,
+            args.frames,
+            args.mean,
+            args.std,
+            test_patient_names
+        )
+
+
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=args.batch_size, shuffle=True,
@@ -111,7 +153,6 @@ if __name__ == '__main__':
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
         mode='max',
         monitor='val_dsc',
-        #monitor='train_dsc',
         verbose=True,
         save_last=True,
 
@@ -122,7 +163,7 @@ if __name__ == '__main__':
 
     # 32位精度
     # 多卡并行变为ddp后，需要调高lr，倍数为对应显卡张数或根号倍 devices=[0, 1], strategy="ddp", sync_batchnorm=True,
-    trainer = pl.Trainer(accelerator="gpu", devices=[3], max_epochs=args.epochs,
+    trainer = pl.Trainer(accelerator="gpu", devices=[1], max_epochs=args.epochs,
                         val_check_interval=args.val_check_interval,
                         log_every_n_steps=10,
                         callbacks=[checkpoint_callback])

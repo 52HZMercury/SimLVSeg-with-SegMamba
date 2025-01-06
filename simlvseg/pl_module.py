@@ -36,56 +36,56 @@ class BaseModule(pl.LightningModule):
         return metrics
 
     def val_test_epoch_end(self, set_name, step_outputs):
-        # preds  = []
-        # labels = []
-        #
-        # for output in step_outputs:
-        #     preds.append(output['batch_preds'])
-        #     labels.append(output['batch_labels'])
-        #
-        # preds  = torch.cat(preds)
-        # labels = torch.cat(labels)
-        #
-        # loss = self.criterion(preds, labels)
-        #
-        # self.log(f"{set_name}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        #
-        # self.calculate_metrics(set_name, preds, labels)
+        preds  = []
+        labels = []
+
+        for output in step_outputs:
+            preds.append(output['batch_preds'])
+            labels.append(output['batch_labels'])
+
+        preds  = torch.cat(preds)
+        labels = torch.cat(labels)
+
+        loss = self.criterion(preds, labels)
+
+        self.log(f"{set_name}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+        self.calculate_metrics(set_name, preds, labels)
 
 
         # camus
-        losses = []
-        value_dsc=[]
-        value_iou=[]
-        value_dice_loss=[]
-
-        for output in step_outputs:
-            batch_pred = output['batch_preds']
-            batch_labels = output['batch_labels']
-
-            loss = self.criterion(batch_pred, batch_labels)
-            losses.append(loss)
-
-            metrics = self.calculate_metrics_batch(batch_pred, batch_labels)
-            # metrics[0][1] value_dsc
-            value_dsc.append(metrics[0][1])
-            # metrics[1][1] value_iou
-            value_iou.append(metrics[1][1])
-            # metrics[2][1] value_dice_loss
-            value_dice_loss.append(metrics[2][1])
-
-        # 计算所有 loss 的平均值
-        loss_mean = sum(losses) / len(losses)
-        self.log(f"{set_name}_loss", loss_mean, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        # 计算所有 dsc 的平均值
-        avg_dsc = sum(value_dsc) / len(value_dsc) if value_dsc else 0
-        self.log(f"{set_name}_dsc", avg_dsc, prog_bar=True, logger=True)
-        # 计算所有 iou 的平均值
-        avg_iou = sum(value_iou) / len(value_iou) if value_iou else 0
-        self.log(f"{set_name}_iou", avg_iou, prog_bar=True, logger=True)
-        # 计算所有 dice_loss 的平均值
-        avg_dice_loss = sum(value_dice_loss) / len(value_dice_loss) if value_dice_loss else 0
-        self.log(f"{set_name}_dice_loss", avg_dice_loss, prog_bar=True, logger=True)
+        # losses = []
+        # value_dsc=[]
+        # value_iou=[]
+        # value_dice_loss=[]
+        #
+        # for output in step_outputs:
+        #     batch_pred = output['batch_preds']
+        #     batch_labels = output['batch_labels']
+        #
+        #     loss = self.criterion(batch_pred, batch_labels)
+        #     losses.append(loss)
+        #
+        #     metrics = self.calculate_metrics_batch(batch_pred, batch_labels)
+        #     # metrics[0][1] value_dsc
+        #     value_dsc.append(metrics[0][1])
+        #     # metrics[1][1] value_iou
+        #     value_iou.append(metrics[1][1])
+        #     # metrics[2][1] value_dice_loss
+        #     value_dice_loss.append(metrics[2][1])
+        #
+        # # 计算所有 loss 的平均值
+        # loss_mean = sum(losses) / len(losses)
+        # self.log(f"{set_name}_loss", loss_mean, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        # # 计算所有 dsc 的平均值
+        # avg_dsc = sum(value_dsc) / len(value_dsc) if value_dsc else 0
+        # self.log(f"{set_name}_dsc", avg_dsc, prog_bar=True, logger=True)
+        # # 计算所有 iou 的平均值
+        # avg_iou = sum(value_iou) / len(value_iou) if value_iou else 0
+        # self.log(f"{set_name}_iou", avg_iou, prog_bar=True, logger=True)
+        # # 计算所有 dice_loss 的平均值
+        # avg_dice_loss = sum(value_dice_loss) / len(value_dice_loss) if value_dice_loss else 0
+        # self.log(f"{set_name}_dice_loss", avg_dice_loss, prog_bar=True, logger=True)
 
     def forward(self, x):
         return self.model.forward(x)
@@ -97,10 +97,8 @@ class BaseModule(pl.LightningModule):
 
         preds = self.forward(imgs)
 
-        # preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
+        preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
         # preds, labels = self.postprocess_batch_preds_and_targets_camus(preds, targets)
-
-        labels = targets
 
         loss = self.criterion(preds, labels)
 
@@ -117,8 +115,9 @@ class BaseModule(pl.LightningModule):
 
         preds = self.forward(imgs)
 
-        #preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
-        labels = targets
+        preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
+        # preds, labels = self.postprocess_batch_preds_and_targets_camus(preds, targets)
+        # preds, labels = self.postprocess_batch_preds_and_targets_camus_val(preds, targets)
 
         return {'batch_preds': preds, 'batch_labels': labels}
 
@@ -139,7 +138,10 @@ class SegModule(BaseModule):
             weights=None,
             pretrained_type='encoder',
             img_size=None,
-            loss_type='dice',
+            # loss_type='dice',
+            loss_type='jaccard',
+            # loss_type='hccdice',
+            # loss_type='tversky',
     ):
         super().__init__()
 
@@ -214,27 +216,35 @@ class SegModule(BaseModule):
                 [br[0][index], br[1][index]]]
 
     def configure_optimizers(self):
-        # optimizer = torch.optim.AdamW(
-        #     self.parameters(), lr=1e-4,
-        #     weight_decay=1e-5, amsgrad=True,
-        # )
-        # 双卡学习率
+        # AdamW
+        optimizer = torch.optim.AdamW(
+            self.parameters(), lr=4e-4,
+            weight_decay=1e-5, amsgrad=True,
+        )
+
+        # AdamW 双卡学习率
         # optimizer = torch.optim.AdamW(
         #     self.parameters(), lr=2e-4,
         #     weight_decay=1e-5, amsgrad=True,
         # )
 
-        optimizer = torch.optim.SGD(
-            self.parameters(), lr=0.1,  # 设置学习率
-            momentum=0.9,  # 设置动量
-            weight_decay=1e-5  # 设置权重衰减
-        )
-
-        # 默认
-        # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[25, 35], gamma=0.1, )
+        # SGD
+        # optimizer = torch.optim.SGD(
+        #     self.parameters(), lr=0.1,  # 设置学习率
+        #     momentum=0.9,  # 设置动量
+        #     weight_decay=1e-5  # 设置权重衰减
+        # )
 
         # MultiStepLR
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30, 40], gamma=0.1, )
+        # 默认
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        #   optimizer, milestones=[45, 60], gamma=0.1,
+        # )
+
+        # 35 50
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            optimizer, milestones=[35, 50], gamma=0.1,
+        )
 
         # 定义LinearLR调度器，线性增加
         # scheduler = LinearLR(

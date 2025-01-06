@@ -1,4 +1,6 @@
 import copy
+
+import math
 import numpy as np
 import os
 import random
@@ -8,7 +10,7 @@ import torchvision
 import torchvision.transforms as transforms
 import PIL.Image
 
-from .camus import CAMUSDataset
+from .camus import CAMUSDataset, CAMUSDatasetTest
 from ..dataset import EchoDataset
 from ..utils import (
     get_optimum_set_of_frame_indexes,
@@ -41,22 +43,32 @@ class Seg3DDataset(EchoDataset):
             # 0 represents the mean color (dark grey), since this is after normalization
             video = np.concatenate((video, np.zeros((c, length * self.period - f, h, w), video.dtype)), axis=1)
             c, f, h, w = video.shape  # pylint: disable=E0633
-        
+
+
         # Gather targets
         target = {}
-        
+
         key = self.fnames[index]
         _t  = -1 if trace_name == 'large_trace' else 0
-        
+
+        trace_index = self.frames[key][_t]
+        if trace_index >= f:
+            raise IndexError(f"At Key '{key}' Trace index {trace_index} is out of bounds for video with {f} frames")
+
         target['filename']    = self.fnames[index]
         target['trace_name']  = trace_name
         target['trace_index'] = np.int(self.frames[key][_t])
         target['trace_frame'] = video[:, self.frames[key][_t], :, :].transpose((1, 2, 0))
         t = self.trace[key][self.frames[key][_t]]
-        
-        x1, y1, x2, y2 = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
-        x = np.concatenate((x1[1:], np.flip(x2[1:])))
-        y = np.concatenate((y1[1:], np.flip(y2[1:])))
+
+
+        if t.shape[1] == 4:
+            x1, y1, x2, y2 = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
+            x = np.concatenate((x1[1:], np.flip(x2[1:])))
+            y = np.concatenate((y1[1:], np.flip(y2[1:])))
+        else:
+            assert t.shape[1] == 2
+            x, y = t[:, 0], t[:, 1]
         
         r, c = skimage.draw.polygon(np.rint(y).astype(np.int), np.rint(x).astype(np.int), (video.shape[2], video.shape[3]))
         mask = np.zeros((video.shape[2], video.shape[3]), np.float32)
@@ -229,13 +241,14 @@ class Seg3DDatasetTest(Seg3DDataset):
         return video, target
 
 class Seg3DDatasetCamus(CAMUSDataset):
-    def __init__(self, data_dir, n_frames, mean, std):
-        super().__init__(data_dir, n_frames, mean, std)
+    def __init__(self, data_dir, n_frames, mean, std, patient_names):
+        super().__init__(data_dir, n_frames, mean, std, patient_names)
     def __getitem__(self, idx):
-        a4c_seq, a4c_gt, patient = super().__getitem__(idx)
+        a4c_seq, a4c_gt, _ = super().__getitem__(idx)
 
         data = a4c_seq
         label = a4c_gt
 
         # print(data.shape, label.shape)
         return data, label
+
