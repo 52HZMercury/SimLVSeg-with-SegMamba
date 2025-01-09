@@ -218,7 +218,7 @@ class SegModule(BaseModule):
     def configure_optimizers(self):
         # AdamW
         optimizer = torch.optim.AdamW(
-            self.parameters(), lr=4e-4,
+            self.parameters(), lr=3e-4,
             weight_decay=1e-5, amsgrad=True,
         )
 

@@ -12,7 +12,7 @@ class VolumeTracingsCleaner:
         """
         self.input_file_path = input_file_path
         self.output_file_path = output_file_path if output_file_path else input_file_path
-        self.backup_file_path = os.path.dirname(input_file_path)+'VolumeTracings_origin.csv'
+        self.backup_file_path = os.path.dirname(input_file_path)+'/VolumeTracings_origin.csv'
 
     def clean_data(self):
         """
@@ -29,6 +29,9 @@ class VolumeTracingsCleaner:
 
         # 删除 Frame 列为 'No Systolic' 的行
         df_cleaned = df_cleaned[df_cleaned['Frame'] != 'No Systolic']
+
+        # 因为读取的视频数据从0帧开始编号，因此使 Frame 列中的所有数据减一
+        df_cleaned['Frame'] = df_cleaned['Frame'].astype(int) - 1
 
         # 保存清理后的数据到新的 CSV 文件
         df_cleaned.to_csv(self.output_file_path, index=False)

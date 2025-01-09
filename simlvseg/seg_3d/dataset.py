@@ -44,23 +44,21 @@ class Seg3DDataset(EchoDataset):
             video = np.concatenate((video, np.zeros((c, length * self.period - f, h, w), video.dtype)), axis=1)
             c, f, h, w = video.shape  # pylint: disable=E0633
 
-
         # Gather targets
         target = {}
 
         key = self.fnames[index]
-        _t  = -1 if trace_name == 'large_trace' else 0
+        _t = -1 if trace_name == 'large_trace' else 0
 
         trace_index = self.frames[key][_t]
         if trace_index >= f:
             raise IndexError(f"At Key '{key}' Trace index {trace_index} is out of bounds for video with {f} frames")
 
-        target['filename']    = self.fnames[index]
-        target['trace_name']  = trace_name
+        target['filename'] = self.fnames[index]
+        target['trace_name'] = trace_name
         target['trace_index'] = np.int(self.frames[key][_t])
         target['trace_frame'] = video[:, self.frames[key][_t], :, :].transpose((1, 2, 0))
         t = self.trace[key][self.frames[key][_t]]
-
 
         if t.shape[1] == 4:
             x1, y1, x2, y2 = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
