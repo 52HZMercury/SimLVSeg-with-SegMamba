@@ -4,10 +4,13 @@ import torch
 
 import monai
 
-# from .LKMUNet import LKMUNet
+
 from .LightMUNet import LightMUNet
 from .TMamba3D import TMamba3D
+from .segformer3d import SegFormer3D
+from .ukan3d import UNet3DbottleKAN
 from .unet_3d import UNet3D, UNet3DSmall
+from .unet_idc3d import UNetIDC3D
 from .uniformer import UniFormerUNet
 from .vit import ViTUNET
 from .segmamba import SegMamba
@@ -143,15 +146,22 @@ def get_model(
                          depths=[2, 2, 2, 2],
                          feat_size=[16, 32, 64, 128])
 
-    # elif encoder_name.lower() == 'lkmunet':
-    #     model = LKMUNet(input_channels=3)
-
-    elif encoder_name.lower() == 'tmamba3d':
-        model = TMamba3D(in_channels=3, classes=1, input_size=(128, 128, 128), high_freq=0.9, low_freq=0.1)
-
     elif encoder_name.lower() == 'lightmunet':
         model = LightMUNet(in_channels=3,
                            out_channels=1)
+
+    elif encoder_name.lower() == 'ukan3d':
+        model = UNet3DbottleKAN()
+
+    elif encoder_name.lower() == 'segformer3d':
+        model = SegFormer3D()
+
+    elif encoder_name.lower() == 'unet_idc3d':
+        model = UNetIDC3D()
+
+    elif encoder_name.lower() == 'tmamba3d':
+        model = TMamba3D(in_channels=3, classes=1, input_size=(112, 112, 112), high_freq=0.9, low_freq=0.1)
+
     else:
         raise NotImplementedError(f"{encoder_name} is not recognized ...")
 

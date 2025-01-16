@@ -1,3 +1,4 @@
+import torch.nn.functional as F
 import pytorch_lightning as pl
 import segmentation_models_pytorch as smp
 import segmentation_models_pytorch.utils as smp_utils
@@ -98,6 +99,7 @@ class BaseModule(pl.LightningModule):
         preds = self.forward(imgs)
 
         preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
+
         # preds, labels = self.postprocess_batch_preds_and_targets_camus(preds, targets)
 
         loss = self.criterion(preds, labels)
@@ -138,8 +140,8 @@ class SegModule(BaseModule):
             weights=None,
             pretrained_type='encoder',
             img_size=None,
-            # loss_type='dice',
-            loss_type='jaccard',
+            loss_type='dice',
+            # loss_type='jaccard',
             # loss_type='hccdice',
             # loss_type='tversky',
     ):
@@ -222,11 +224,6 @@ class SegModule(BaseModule):
             weight_decay=1e-5, amsgrad=True,
         )
 
-        # AdamW 双卡学习率
-        # optimizer = torch.optim.AdamW(
-        #     self.parameters(), lr=2e-4,
-        #     weight_decay=1e-5, amsgrad=True,
-        # )
 
         # SGD
         # optimizer = torch.optim.SGD(

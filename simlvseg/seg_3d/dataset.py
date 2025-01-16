@@ -115,7 +115,20 @@ class Seg3DDataset(EchoDataset):
 
         # (N, C, H, W) --> (C, H, W, N)
         video = video.transpose((1, 2, 3, 0))
-        
+
+        # # Tmamba
+        # video = video[0, :, :, :]
+        # video = np.expand_dims(video, axis=0)
+        #
+        # # 进行填充
+        # H, W = video.shape[1:3]
+        # pad_H = (160 - H) // 2
+        # pad_W = (160 - W) // 2
+        #
+        # # 进行填充
+        # video = np.pad(video, ((0, 0), (pad_H, pad_H), (pad_W, pad_W), (0, 0)), mode='constant')
+        # # print(video.shape)
+
         return video, target
 
 class Seg3DDatasetTest(Seg3DDataset):
@@ -235,7 +248,7 @@ class Seg3DDatasetTest(Seg3DDataset):
         
         # (N, C, H, W) --> (C, H, W, N)
         video = video.transpose((1, 2, 3, 0))
-        
+
         return video, target
 
 class Seg3DDatasetCamus(CAMUSDataset):

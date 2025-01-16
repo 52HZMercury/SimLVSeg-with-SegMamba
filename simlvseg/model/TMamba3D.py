@@ -6,7 +6,7 @@ import numpy as np
 import copy
 from torch.cuda.amp import autocast
 try:
-    from mamba_ssm import Mamba
+    from mamba_ssm import Mamba_FFT, Mamba
     from mamba_ssm.ops.triton.layernorm import RMSNorm, layer_norm_fn, rms_norm_fn
     print('succesfully import mamba_ssm')
 except:
@@ -56,7 +56,7 @@ class Vim_Block(nn.Module):
                 'expand': 2,    # Block expansion factor
             }   
         ssm_cfg = {}
-        mixer_cls = partial(Mamba, layer_idx=None, bimamba_type=bimamba_type, **ssm_cfg, **factory_kwargs)
+        mixer_cls = partial(Mamba_FFT, layer_idx=None, bimamba_type=bimamba_type, high_freq=high_freq, low_freq=low_freq, **ssm_cfg, **factory_kwargs)
         norm_cls = partial(
             RMSNorm, eps=float(1e-5), **factory_kwargs
         )
@@ -169,7 +169,7 @@ class MambaLayer(nn.Module):
         return out
 
 class TMamba3D(nn.Module):
-    def __init__(self, in_channels: int = 1, classes: int = 1, input_size: tuple = (160, 160, 96), high_freq: float = 0.9, low_freq: float = 0.1):
+    def __init__(self, in_channels: int = 3, classes: int = 1, input_size: tuple = (160, 160, 96), high_freq: float = 0.9, low_freq: float = 0.1):
         super().__init__()
         self.model_name = "TMamba3D"
         self.classes = classes
@@ -215,6 +215,7 @@ class TMamba3D(nn.Module):
         self.out_conv = ConvBlock(
             in_channels=sum(num_skip_channels),
             out_channels=self.classes,
+            # out_channels=1,
             kernel_size=3,
             batch_norm=True,
             preactivation=True,
@@ -274,7 +275,7 @@ class ConvBlock(torch.nn.Module):
                 ),
             ]
             if batch_norm:
-                layers = [torch.nn.BatchNorm3d(in_channels)] + layers
+                layers = [torch.nn.BatchNorm3d(in_channels)] + layers  # 使用 in_channels
         else:
             layers = [
                 pad,
@@ -293,6 +294,7 @@ class ConvBlock(torch.nn.Module):
 
     def forward(self, x):
         return self.conv(x)
+
 
 
 class DenseFeatureStack(torch.nn.Module):

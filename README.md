@@ -61,6 +61,7 @@ python scripts/seg_3d/seg_3d_train.py\
 
 # 3D Unet
 using pediatric_echo dataset
+
 ```bash
 python scripts/seg_3d/seg_3d_train.py\
     --data_path /workdir1/cn24/data/pediatric_echo/A4C \
@@ -81,11 +82,9 @@ python scripts/seg_3d/seg_3d_train.py\
 
 add the LightMUNet model to the training framework:
 
-seg_3d_train
-
 ```bash
 python scripts/seg_3d/seg_3d_train.py \
-    --data_path /workdir1/echo_dataset/EchoNet-Dynamic \
+    --data_path /workdir1/cn24/data/pediatric_echo/A4C \
     --mean 0.12741163 0.1279413 0.12912785 \
     --std 0.19557191 0.19562256 0.1965878 \
     --encoder "LightMUNet" \
@@ -97,5 +96,83 @@ python scripts/seg_3d/seg_3d_train.py \
     --val_check_interval 0.5 \
     --seed 42
 ```
+
+# TMamba3D
+
+add the TMamba3D model to the training framework:
+
+```bash
+python scripts/seg_3d/seg_3d_train.py \
+    --data_path /workdir1/cn24/data/pediatric_echo/A4C \
+    --mean 0.12741163 0.1279413 0.12912785 \
+    --std 0.19557191 0.19562256 0.1965878 \
+    --encoder "TMamba3D" \
+    --frames 128 \
+    --period 1 \
+    --num_workers 2 \
+    --batch_size 4 \
+    --epochs 60  \
+    --val_check_interval 0.5 \
+    --seed 42
+```
+
+# UKAN3D
+
+add the UKAN3D model to the training framework:
+
+```bash
+python scripts/seg_3d/seg_3d_train.py \
+    --data_path /workdir1/cn24/data/pediatric_echo/A4C \
+    --mean 0.12741163 0.1279413 0.12912785 \
+    --std 0.19557191 0.19562256 0.1965878 \
+    --encoder "UKAN3D" \
+    --frames 128 \
+    --period 1 \
+    --num_workers 2 \
+    --batch_size 4 \
+    --epochs 60  \
+    --val_check_interval 0.5 \
+    --seed 42
+```
+
+# SegFormer3D
+
+add the SegFormer3D model to the training framework:
+
+```bash
+python scripts/seg_3d/seg_3d_train.py \
+    --data_path /workdir1/cn24/data/pediatric_echo/A4C \
+    --mean 0.12741163 0.1279413 0.12912785 \
+    --std 0.19557191 0.19562256 0.1965878 \
+    --encoder "SegFormer3D" \
+    --frames 112 \
+    --period 1 \
+    --num_workers 2 \
+    --batch_size 4 \
+    --epochs 60  \
+    --val_check_interval 0.5 \
+    --seed 42
+```
+
+# UNet_idc3D
+
+add the UNet_idc3D model to the training framework:
+
+```bash
+python scripts/seg_3d/seg_3d_train.py \
+    --data_path /workdir1/cn24/data/pediatric_echo/A4C \
+    --mean 0.12741163 0.1279413 0.12912785 \
+    --std 0.19557191 0.19562256 0.1965878 \
+    --encoder "UNet_idc3D" \
+    --frames 112 \
+    --period 1 \
+    --num_workers 2 \
+    --batch_size 4 \
+    --epochs 60  \
+    --val_check_interval 0.5 \
+    --seed 42
+```
+
+
 mydata_path: 7508: /workdir2t/cn24/data/EchoNet-Dynamic 
              6419: /workdir1/echo_dataset/EchoNet-Dynamic 
