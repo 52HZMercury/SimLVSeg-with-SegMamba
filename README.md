@@ -60,6 +60,25 @@ python scripts/seg_3d/seg_3d_train.py\
 
 
 # 3D Unet
+
+using camus dataset
+
+```bash
+python scripts/seg_3d/seg_3d_camus_train.py\
+    --data_path /workdir1/cn24/data/CAMUS \
+    --mean 0.12741163 0.1279413 0.12912785 \
+    --std 0.19557191 0.19562256 0.1965878 \
+    --encoder "3d_unet"\
+    --frames 32 \
+    --period 1 \
+    --num_workers 4 \
+    --batch_size 16 \
+    --epochs 60  \
+    --val_check_interval 0.5 \
+    --seed 42
+```
+
+
 using pediatric_echo dataset
 
 ```bash
@@ -96,25 +115,23 @@ python scripts/seg_3d/seg_3d_train.py \
     --val_check_interval 0.5 \
     --seed 42
 ```
-
-# TMamba3D
-
-add the TMamba3D model to the training framework:
-
+camus
 ```bash
-python scripts/seg_3d/seg_3d_train.py \
-    --data_path /workdir1/cn24/data/pediatric_echo/A4C \
+python scripts/seg_3d/seg_3d_camus_train.py \
+    --data_path /workdir1/cn24/data/CAMUS \
     --mean 0.12741163 0.1279413 0.12912785 \
     --std 0.19557191 0.19562256 0.1965878 \
-    --encoder "TMamba3D" \
+    --encoder "LightMUNet" \
     --frames 128 \
     --period 1 \
     --num_workers 2 \
-    --batch_size 4 \
+    --batch_size 3 \
     --epochs 60  \
     --val_check_interval 0.5 \
     --seed 42
 ```
+
+
 
 # UKAN3D
 

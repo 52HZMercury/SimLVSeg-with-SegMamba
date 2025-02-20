@@ -35,6 +35,7 @@ class Seg3DModule(SegModule):
         # 全监督
         out_preds = preds
         out_labels = targets['video_gt'][:, None, :]  # None表示在第0维之后插入一个维度
+
         #                  [batch_size channel height width depth]
         # preds.shape      [4, 1, 112, 112, 128]
         # out_preds.shape  [4, 1, 112, 112, 128]

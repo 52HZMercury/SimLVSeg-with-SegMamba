@@ -82,9 +82,16 @@ class DataModule(pl.LightningDataModule):
         # )
 
         # 读取文件内容
-        train_patient_names = read_patient_names('scripts/camus/database_split/subgroup_training.txt')
-        val_patient_names = read_patient_names('scripts/camus/database_split/subgroup_validation.txt')
-        test_patient_names = read_patient_names('scripts/camus/database_split/subgroup_testing.txt')
+
+        # SAM划分
+        train_patient_names = read_patient_names('scripts/camus/database_split/camus_train_filenames.txt')
+        val_patient_names = read_patient_names('scripts/camus/database_split/camus_val_filenames.txt')
+        test_patient_names = read_patient_names('scripts/camus/database_split/camus_test_filenames.txt')
+
+        # CAMUS划分
+        # train_patient_names = read_patient_names('scripts/camus/database_split/subgroup_training.txt')
+        # val_patient_names = read_patient_names('scripts/camus/database_split/subgroup_validation.txt')
+        # test_patient_names = read_patient_names('scripts/camus/database_split/subgroup_testing.txt')
 
         print('Configuring train dataset ...')
         # 训练数据集
