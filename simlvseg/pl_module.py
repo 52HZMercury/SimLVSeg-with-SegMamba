@@ -98,8 +98,8 @@ class BaseModule(pl.LightningModule):
 
         preds = self.forward(imgs)
 
-        # preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
-        preds, labels = self.postprocess_batch_preds_and_targets_camus(preds, targets)
+        preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
+        # preds, labels = self.postprocess_batch_preds_and_targets_camus(preds, targets)
 
         loss = self.criterion(preds, labels)
 
@@ -116,8 +116,8 @@ class BaseModule(pl.LightningModule):
 
         preds = self.forward(imgs)
 
-        # preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
-        preds, labels = self.postprocess_batch_preds_and_targets_camus(preds, targets)
+        preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
+        # preds, labels = self.postprocess_batch_preds_and_targets_camus(preds, targets)
         # preds, labels = self.postprocess_batch_preds_and_targets_camus_val(preds, targets)
 
         return {'batch_preds': preds, 'batch_labels': labels}
@@ -139,8 +139,8 @@ class SegModule(BaseModule):
             weights=None,
             pretrained_type='encoder',
             img_size=None,
-            loss_type='dice',
-            # loss_type='jaccard',
+            # loss_type='dice',
+            loss_type='jaccard',
             # loss_type='hccdice',
             # loss_type='tversky',
     ):
@@ -219,7 +219,7 @@ class SegModule(BaseModule):
     def configure_optimizers(self):
         # AdamW
         optimizer = torch.optim.AdamW(
-            self.parameters(), lr=2e-4,
+            self.parameters(), lr=4e-4,
             weight_decay=1e-5, amsgrad=True,
         )
 
