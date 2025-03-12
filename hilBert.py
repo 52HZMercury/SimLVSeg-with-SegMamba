@@ -41,11 +41,11 @@ class Hilbert:
         return d
 
     def main(self):
-        n = 64
+        n = 4
         for i in range(n):
             for j in range(n):
                 print(f"{self.xy2d(n, Point(j, i)):2}", end=" ")
-            print()
+            # print()
 
 
 if __name__ == "__main__":

@@ -11,8 +11,9 @@ def get_augmentation(
         A.CLAHE(p=0.5),
         A.Rotate(20, interpolation=cv2.INTER_LINEAR,
                  border_mode=cv2.BORDER_CONSTANT, value=0, p=1.),
-        A.PadIfNeeded(124, 124, border_mode=cv2.BORDER_CONSTANT, value=0, always_apply=True),
+        # A.PadIfNeeded(124, 124, border_mode=cv2.BORDER_CONSTANT, value=0, always_apply=True),
         # A.RandomCrop(112, 112, always_apply=True),
+        A.PadIfNeeded(130, 130, border_mode=cv2.BORDER_CONSTANT, value=0, always_apply=True),
         A.RandomCrop(128, 128, always_apply=True),
     ])
     

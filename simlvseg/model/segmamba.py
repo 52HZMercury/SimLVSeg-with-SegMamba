@@ -53,7 +53,47 @@ class LayerNorm(nn.Module):
 
             return x
 
+class Point:
+    def __init__(self, x=0, y=0):
+        self.x = x  # X坐标
+        self.y = y  # Y坐标
 
+
+class Hilbert:
+    def rot(self, n, pt, rx, ry):
+        if ry == 0:
+            if rx == 1:
+                pt.x = n - 1 - pt.x
+                pt.y = n - 1 - pt.y
+
+            # Swap x and y
+            pt.x, pt.y = pt.y, pt.x
+
+    # Hilbert代码到XY坐标
+    def d2xy(self, n, d, pt):
+        pt.x, pt.y = 0, 0
+        t = d
+        s = 1
+        while s < n:
+            rx = 1 & (t // 2)
+            ry = 1 & (t ^ rx)
+            self.rot(s, pt, rx, ry)
+            pt.x += s * rx
+            pt.y += s * ry
+            t //= 4
+            s *= 2
+
+    # XY坐标到Hilbert代码转换
+    def xy2d(self, n, pt):
+        d = 0
+        s = n // 2
+        while s > 0:
+            rx = 1 if (pt.x & s) > 0 else 0
+            ry = 1 if (pt.y & s) > 0 else 0
+            d += s * s * ((3 * rx) ^ ry)
+            self.rot(s, pt, rx, ry)
+            s //= 2
+        return d
 
 class MambaLayer(nn.Module):
     def __init__(self, dim, d_state=16, d_conv=4, expand=2, num_slices=None):
@@ -69,25 +109,39 @@ class MambaLayer(nn.Module):
             nslices=num_slices,
         )
 
-    def HilbertScan(self, tensor):
+    def hilbertFlat(self, tensor):
         # 仅适用于正方形图片
         # 获取输入张量的形状
-        batch_size, seq_len, h, w, d = tensor.shape
+        batch_size, channel, h, w, d = tensor.shape
 
         # 初始化结果张量
-        result = torch.zeros((batch_size, seq_len, h * w * d), dtype=tensor.dtype, device=tensor.device)
+        flat = torch.zeros((batch_size, channel, h * w * d), dtype=tensor.dtype, device=tensor.device)
 
         for b in range(batch_size):
-            for s in range(seq_len):
-                diag_index = 0
+            for s in range(channel):
                 for k in range(d):  # 遍历深度维度
                     for i in range(h):  # 遍历高度维度
                         for j in range(w):  # 遍历宽度维度
-                            # 按照对角线顺序填充结果张量
-                            result[b, s, diag_index] = tensor[b, s, i, j, k]
-                            diag_index += 1
+                            # 按照hilBert曲线的顺序填充张量
+                            flat[b, s, Hilbert.xy2d(128, Point(j, i))] = tensor[b, s, i, j, k]
 
-        return result
+        return flat
+
+    def hilbertReshape(self, flatTensor):
+        batch_size, channel, hilbertSeq = flatTensor.shape
+
+        # 初始化结果张量
+        reshapeTensor = torch.zeros((batch_size, channel, 128, 128, 128), dtype=flatTensor.dtype, device=flatTensor.device)
+
+        for b in range(batch_size):
+            for s in range(channel):
+                for k in range(128):  # 遍历深度维度
+                    for i in range(128):  # 遍历高度维度
+                        for j in range(128):  # 遍历宽度维度
+                            # 按照hilBert曲线的顺序还原张量
+                            reshapeTensor[b, s, i, j, k] = flatTensor[b, s, Hilbert.xy2d(128, Point(j, i))]
+
+        return reshapeTensor
 
     # orgin
     def forward(self, x):
@@ -104,6 +158,7 @@ class MambaLayer(nn.Module):
         x_mamba = self.mamba(x_norm)
         # 恢复为原来的形状
         out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
+
 
         out = out + x_skip
 

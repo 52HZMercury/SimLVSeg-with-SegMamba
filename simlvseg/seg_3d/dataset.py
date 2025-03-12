@@ -119,7 +119,6 @@ class Seg3DDataset(EchoDataset):
         video = video.transpose((1, 2, 3, 0))
 
 
-
         return video, target
 
 class Seg3DDatasetTest(Seg3DDataset):

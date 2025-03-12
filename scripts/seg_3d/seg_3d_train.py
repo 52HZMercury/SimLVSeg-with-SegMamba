@@ -147,7 +147,7 @@ if __name__ == '__main__':
 
     # 32位精度
     # 多卡并行变为ddp后，需要调高lr，倍数为对应显卡张数或根号倍 devices=[0, 1], strategy="ddp", sync_batchnorm=True,
-    trainer = pl.Trainer(accelerator="gpu", devices=[1], max_epochs=args.epochs,
+    trainer = pl.Trainer(accelerator="gpu", devices=[0], max_epochs=args.epochs,
                         val_check_interval=args.val_check_interval,
                         log_every_n_steps=10,
                         callbacks=[checkpoint_callback])

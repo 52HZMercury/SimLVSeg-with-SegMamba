@@ -95,10 +95,19 @@ def load_video(filename: str) -> np.ndarray:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         # 缩放为128
-        frame = cv2.resize(frame, (128,128))
+        # frame = cv2.resize(frame, (128, 128))
+
+        # 0值填充
+        # 计算需要填充的宽度和高度
+        top = 0
+        bottom = 128 - frame.shape[0]
+        left = 0
+        right = 128 - frame.shape[1]
+        # 使用0值填充图像
+        padded_frame = cv2.copyMakeBorder(frame, top, bottom, left, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
 
         # f h w c
-        v[count, :, :, :] = frame
+        v[count, :, :, :] = padded_frame
 
     return v
 

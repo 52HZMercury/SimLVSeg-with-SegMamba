@@ -140,8 +140,8 @@ class SegModule(BaseModule):
             pretrained_type='encoder',
             img_size=None,
             # loss_type='dice',
-            loss_type='jaccard',
-            # loss_type='hccdice',
+            # loss_type='jaccard',
+            loss_type='hccdice',
             # loss_type='tversky',
     ):
         super().__init__()
