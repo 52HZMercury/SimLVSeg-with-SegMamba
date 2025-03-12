@@ -12,7 +12,8 @@ def get_augmentation(
         A.Rotate(20, interpolation=cv2.INTER_LINEAR,
                  border_mode=cv2.BORDER_CONSTANT, value=0, p=1.),
         A.PadIfNeeded(124, 124, border_mode=cv2.BORDER_CONSTANT, value=0, always_apply=True),
-        A.RandomCrop(112, 112, always_apply=True),
+        # A.RandomCrop(112, 112, always_apply=True),
+        A.RandomCrop(128, 128, always_apply=True),
     ])
     
     augmentation = VideoAlbumentations(n_frames, augmentation, {'trace_mask': 'mask'})

@@ -67,9 +67,6 @@ class MambaLayer(nn.Module):
             expand=expand,  # Block expansion factor
             bimamba_type="v3",
             nslices=num_slices,
-            scan = "flat"
-            # scan = "Diagonal"
-            # scan = "Hilbert"
         )
 
     def HilbertScan(self, tensor):
@@ -94,23 +91,19 @@ class MambaLayer(nn.Module):
 
     # orgin
     def forward(self, x):
+
         B, C = x.shape[:2]
         x_skip = x
         assert C == self.dim
         n_tokens = x.shape[2:].numel()
         img_dims = x.shape[2:]
 
-        if(self.scan == "flat"):
-            # 后三位展平为一维进行扫描
-            x_flat = x.reshape(B, C, n_tokens).transpose(-1, -2)
-            x_norm = self.norm(x_flat)
-            x_mamba = self.mamba(x_norm)
-            # 恢复为原来的形状
-            out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
-
-        if (self.scan == "Hilbert"):
-            x_Hilbert = self.HilbertScan(x)
-            pass
+        # 后三位展平为一维进行扫描
+        x_flat = x.reshape(B, C, n_tokens).transpose(-1, -2)
+        x_norm = self.norm(x_flat)
+        x_mamba = self.mamba(x_norm)
+        # 恢复为原来的形状
+        out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
 
         out = out + x_skip
 

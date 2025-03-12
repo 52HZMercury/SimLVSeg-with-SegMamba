@@ -84,17 +84,18 @@ def load_video(filename: str) -> np.ndarray:
     frame_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
     
     #v = np.zeros((frame_count, frame_height, frame_width, 3), np.uint8)
-    v = np.zeros((frame_count, 112, 112, 3), np.uint8)
+    v = np.zeros((frame_count, 128, 128, 3), np.uint8)
 
     for count in range(frame_count):
         ret, frame = capture.read()
         if not ret:
             raise ValueError("Failed to load frame #{} of {}.".format(count, filename))
+
         #112*112
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         # 缩放为128
-        # frame = cv2.resize(frame, (128,128))
+        frame = cv2.resize(frame, (128,128))
 
         # f h w c
         v[count, :, :, :] = frame

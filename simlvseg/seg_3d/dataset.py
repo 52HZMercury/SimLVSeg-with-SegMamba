@@ -28,7 +28,7 @@ class Seg3DDataset(EchoDataset):
 
         # Load video into np.array
         video = load_video(video).transpose((3, 0, 1, 2))
-        
+
         # Set number of frames
         c, f, h, w = video.shape
         if self.length is None:
@@ -71,9 +71,10 @@ class Seg3DDataset(EchoDataset):
         r, c = skimage.draw.polygon(np.rint(y).astype(np.int), np.rint(x).astype(np.int), (video.shape[2], video.shape[3]))
         mask = np.zeros((video.shape[2], video.shape[3]), np.float32)
         mask[r, c] = 1
-        
+
         target['trace_mask'] = mask[:, :, None]
-        
+
+
         # Take a random clip from the video
         if self.test is False:
             while True:
@@ -96,18 +97,19 @@ class Seg3DDataset(EchoDataset):
         # Select clips from video
         video = video[:, selected_frame_indexes, :, :]
         video = video.transpose((1, 2, 3, 0))
-        
+
         if self.random_reverse == True:
             raise NotImplementedError("We have not implemented a code to reverse the index ...")
             p = np.random.uniform(0, 1)
             if p < 0.5:
                 video = video[::-1]
-        
+
         # Augmentations
         if self.augmentation is not None:
             video, aux_outs      = self.augmentation(video, {'trace_mask': target["trace_mask"]})
             target["trace_mask"] = aux_outs['trace_mask']
-        
+            # print(f"video shape: {video.shape},trace_mask:{target['trace_mask'].shape}")
+
         # Preprocessing
         if self.preprocessing is not None:
             video, aux_outs      = self.preprocessing(video, {'trace_mask': target["trace_mask"]})
@@ -116,18 +118,7 @@ class Seg3DDataset(EchoDataset):
         # (N, C, H, W) --> (C, H, W, N)
         video = video.transpose((1, 2, 3, 0))
 
-        # # Tmamba
-        # video = video[0, :, :, :]
-        # video = np.expand_dims(video, axis=0)
-        #
-        # # 进行填充
-        # H, W = video.shape[1:3]
-        # pad_H = (160 - H) // 2
-        # pad_W = (160 - W) // 2
-        #
-        # # 进行填充
-        # video = np.pad(video, ((0, 0), (pad_H, pad_H), (pad_W, pad_W), (0, 0)), mode='constant')
-        # # print(video.shape)
+
 
         return video, target
 
