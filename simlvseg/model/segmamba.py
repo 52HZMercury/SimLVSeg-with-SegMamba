@@ -65,19 +65,17 @@ class Point:
 
 class Hilbert:
     def __init__(self):
-        # 初始化时计算 n=128, 64, 32, 16, 8, 4 的 Hilbert 代码到 XY 坐标映射
         self.hilbert_maps = {}
         for n in [64, 32, 16, 8, 4]:
             self.hilbert_maps[n] = self.precompute_hilbert_map(n)
 
     def precompute_hilbert_map(self, n):
-        """预先计算给定 n 的 Hilbert 代码到 XY 坐标的映射"""
-        hilbert_map = {}
-        for d in range(n * n):  # 遍历所有可能的 Hilbert 代码
+        hilbert_map = []
+        for d in range(n * n):
             pt = Point()
             self.d2xy(n, d, pt)
-            hilbert_map[d] = (pt.x, pt.y)
-        return hilbert_map
+            hilbert_map.append([pt.x, pt.y])
+        return torch.tensor(hilbert_map, dtype=torch.long)  # 存储为张量
 
     def rot(self, n, pt, rx, ry):
         if ry == 0:
@@ -130,40 +128,80 @@ class MambaLayer(nn.Module):
             nslices=num_slices,
         )
 
-    def hilbertFlat(self, tensor, hilbertMap):
-        # 仅适用于正方形图片
-        # 获取输入张量的形状
-        batch_size, channel, h, w, d = tensor.shape
-        n = h * w * d
-        # 初始化结果张量
-        flat = torch.zeros((batch_size, channel, n), dtype=tensor.dtype, device=tensor.device)
-        frame_size = h * w  # 每一帧的大小
-        for b in range(batch_size):
-            for s in range(channel):
-                for i in range(n):
-                    # 填满一帧
-                    f = i // frame_size
-                    # 按照hilBert曲线的顺序填充张量
-                    flat[b, s, i] = tensor[b, s, hilbertMap[i%4096][0], hilbertMap[i%4096][1], f]
+    # def hilbertFlat(self, tensor, hilbertMap):
+    #     # 仅适用于正方形图片
+    #     # 获取输入张量的形状
+    #     batch_size, channel, h, w, d = tensor.shape
+    #     n = h * w * d
+    #     # 初始化结果张量
+    #     flat = torch.zeros((batch_size, channel, n), dtype=tensor.dtype, device=tensor.device)
+    #     frameSize = h * w  # 每一帧的大小
+    #     for b in range(batch_size):
+    #         for s in range(channel):
+    #             for i in range(n):
+    #                 # 填满一帧
+    #                 f = i // frameSize
+    #                 # 按照hilBert曲线的顺序填充张量
+    #                 flat[b, s, i] = tensor[b, s, hilbertMap[i%frameSize][0], hilbertMap[i%frameSize][1], f]
+    #
+    #     return flat
 
+
+
+    # def hilbertReshape(self, flatTensor, hilbertMap):
+    #     batch_size, channel, hilbertSeq = flatTensor.shape
+    #     cubeSize = int(math.ceil(hilbertSeq ** (1 / 3)))
+    #     # 初始化结果张量
+    #     reshapeTensor = torch.zeros((batch_size, channel, cubeSize, cubeSize, cubeSize), dtype=flatTensor.dtype,
+    #                                 device=flatTensor.device)
+    #     frameSize = cubeSize * cubeSize  # 每一帧的大小
+    #     for b in range(batch_size):
+    #         for s in range(channel):
+    #             for i in range(hilbertSeq):
+    #                 # 填满一帧
+    #                 f = i // frameSize
+    #                 # 按照hilBert曲线的顺序填充张量
+    #                 reshapeTensor[b, s, hilbertMap[i%frameSize][0], hilbertMap[i%frameSize][1], f] = flatTensor[b, s, i]
+    #
+    #     return reshapeTensor
+
+    def hilbertFlat(self, tensor, hilbertMap):
+        B, C, h, w, d = tensor.shape
+        n = h  # 假设输入为立方体，h == w
+        device = tensor.device
+        coord_map = hilbertMap.to(device)
+
+        total_elements = h * w * d
+        i_all = torch.arange(total_elements, device=device)
+        frame_size = h * w
+        i_in_frame = i_all % frame_size
+        f_idx = i_all // frame_size
+
+        x_y = coord_map[i_in_frame]
+        x_idx, y_idx = x_y[:, 0], x_y[:, 1]
+
+        flat = tensor[:, :, x_idx, y_idx, f_idx]
         return flat
 
     def hilbertReshape(self, flatTensor, hilbertMap):
-        batch_size, channel, hilbertSeq = flatTensor.shape
-        print(hilbertSeq)
-        cubeSize = int(math.ceil(hilbertSeq ** (1 / 3)))
-        # 初始化结果张量
-        reshapeTensor = torch.zeros((batch_size, channel, cubeSize, cubeSize, cubeSize), dtype=flatTensor.dtype,
-                                    device=flatTensor.device)
-        frame_size = cubeSize * cubeSize  # 每一帧的大小
-        for b in range(batch_size):
-            for s in range(channel):
-                for i in range(hilbertSeq):
-                    # 填满一帧
-                    f = i // frame_size
-                    # 按照hilBert曲线的顺序填充张量
-                    reshapeTensor[b, s, hilbertMap[i%4096][0], hilbertMap[i%4096][1], f] = flatTensor[b, s, i]
+        B, C, total_elements = flatTensor.shape
+        device = flatTensor.device
+        hw = hilbertMap.size(0)
+        h = int(math.sqrt(hw))
+        w = h
+        d = total_elements // hw
 
+        reshapeTensor = torch.zeros((B, C, h, w, d), dtype=flatTensor.dtype, device=device)
+        i_all = torch.arange(total_elements, device=device)
+        frame_size = h * w
+        f_idx = i_all // frame_size
+        i_in_frame = i_all % frame_size
+
+        coord_map = hilbertMap.to(device)
+        x_y = coord_map[i_in_frame]
+        x_idx, y_idx = x_y[:, 0], x_y[:, 1]
+
+        reshapeTensor[:, :, x_idx, y_idx, f_idx] = flatTensor
         return reshapeTensor
 
     def forward(self, x):
