@@ -1,3 +1,6 @@
+import math
+
+
 class Point:
     def __init__(self, x=0, y=0):
         self.x = x  # X坐标
@@ -5,6 +8,19 @@ class Point:
 
 
 class Hilbert:
+    def __init__(self, n):
+        # 初始化时计算 n=128, 64, 32, 16, 8, 4 的 Hilbert 代码到 XY 坐标映射
+        self.hilbert_map = self.precompute_hilbert_map(n)
+
+    def precompute_hilbert_map(self, n):
+        """预先计算给定 n 的 Hilbert 代码到 XY 坐标的映射"""
+        hilbert_map = {}
+        for d in range(n * n):  # 遍历所有可能的 Hilbert 代码
+            pt = Point()
+            self.d2xy(n, d, pt)
+            hilbert_map[d] = (pt.x, pt.y)
+        return hilbert_map
+
     def rot(self, n, pt, rx, ry):
         if ry == 0:
             if rx == 1:
@@ -45,9 +61,11 @@ class Hilbert:
         for i in range(n):
             for j in range(n):
                 print(f"{self.xy2d(n, Point(j, i)):2}", end=" ")
-            # print()
+            print()
 
 
 if __name__ == "__main__":
-    hilbert = Hilbert()
-    hilbert.main()
+    hilbert = Hilbert(4)
+    # hilbert.main()
+    for mapping in hilbert.hilbert_map.items():
+        print(mapping)

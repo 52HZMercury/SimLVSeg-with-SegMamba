@@ -10,6 +10,8 @@
 # limitations under the License.
 
 from __future__ import annotations
+
+import math
 import torch.nn as nn
 import torch, einops
 from functools import partial
@@ -60,6 +62,18 @@ class Point:
 
 
 class Hilbert:
+    def __init__(self, n):
+        # 初始化时计算 n=128, 64, 32, 16, 8, 4 的 Hilbert 代码到 XY 坐标映射
+        self.hilbert_map = self.precompute_hilbert_map(n)
+
+    def precompute_hilbert_map(self, n):
+        """预先计算给定 n 的 Hilbert 代码到 XY 坐标的映射"""
+        hilbert_map = {}
+        for d in range(n * n):  # 遍历所有可能的 Hilbert 代码
+            pt = Point()
+            self.d2xy(n, d, pt)
+            hilbert_map[d] = (pt.x, pt.y)
+        return hilbert_map
     def rot(self, n, pt, rx, ry):
         if ry == 0:
             if rx == 1:
@@ -109,7 +123,8 @@ class MambaLayer(nn.Module):
             nslices=num_slices,
         )
 
-    def hilbertFlat(self, tensor):
+    def hilbertFlat(self, tensor, hilbertSize):
+        hilBert = Hilbert()
         # 仅适用于正方形图片
         # 获取输入张量的形状
         batch_size, channel, h, w, d = tensor.shape
@@ -123,27 +138,29 @@ class MambaLayer(nn.Module):
                     for i in range(h):  # 遍历高度维度
                         for j in range(w):  # 遍历宽度维度
                             # 按照hilBert曲线的顺序填充张量
-                            flat[b, s, Hilbert.xy2d(128, Point(j, i))] = tensor[b, s, i, j, k]
+                            flat[b, s, hilBert.xy2d(h, Point(j, i))] = tensor[b, s, i, j, k]
 
         return flat
 
     def hilbertReshape(self, flatTensor):
         batch_size, channel, hilbertSeq = flatTensor.shape
-
+        cubeSize  = int(math.ceil(hilbertSeq ** (1/3)))
+        # print(f"cubeSize:{cubeSize}")
         # 初始化结果张量
-        reshapeTensor = torch.zeros((batch_size, channel, 128, 128, 128), dtype=flatTensor.dtype, device=flatTensor.device)
+        reshapeTensor = torch.zeros((batch_size, channel, cubeSize, cubeSize, cubeSize), dtype=flatTensor.dtype, device=flatTensor.device)
 
         for b in range(batch_size):
             for s in range(channel):
-                for k in range(128):  # 遍历深度维度
-                    for i in range(128):  # 遍历高度维度
-                        for j in range(128):  # 遍历宽度维度
+                for k in range(cubeSize):  # 遍历深度维度
+                    for i in range(cubeSize):  # 遍历高度维度
+                        for j in range(cubeSize):  # 遍历宽度维度
                             # 按照hilBert曲线的顺序还原张量
-                            reshapeTensor[b, s, i, j, k] = flatTensor[b, s, Hilbert.xy2d(128, Point(j, i))]
+                            hilBert = Hilbert()
+                            reshapeTensor[b, s, i, j, k] = flatTensor[b, s, hilBert.xy2d(cubeSize, Point(j, i))]
 
         return reshapeTensor
 
-    # orgin
+
     def forward(self, x):
 
         B, C = x.shape[:2]
@@ -152,19 +169,25 @@ class MambaLayer(nn.Module):
         n_tokens = x.shape[2:].numel()
         img_dims = x.shape[2:]
 
+        # # 后三位展平为一维进行扫描
+        # x_flat = x.reshape(B, C, n_tokens).transpose(-1, -2)
+        # x_norm = self.norm(x_flat)
+        # x_mamba = self.mamba(x_norm)
+        # # 恢复为原来的形状
+        # out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
+
         # 后三位展平为一维进行扫描
-        x_flat = x.reshape(B, C, n_tokens).transpose(-1, -2)
-        x_norm = self.norm(x_flat)
+        hilBertSize = x.shape[-1]
+
+        x_HBflat = self.hilbertFlat(x).transpose(-1, -2)
+        x_norm = self.norm(x_HBflat)
         x_mamba = self.mamba(x_norm)
         # 恢复为原来的形状
-        out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
-
+        out = self.hilbertReshape(x_mamba.transpose(-1, -2))
 
         out = out + x_skip
 
         return out
-
-
 
 
 
