@@ -24,8 +24,9 @@ import torch.nn.functional as F
 import numpy as np
 from timm.models.layers import trunc_normal_
 
-#from torchsummary import summary
-#from utils.image_visualizer import ImageVisualizer
+
+# from torchsummary import summary
+# from utils.image_visualizer import ImageVisualizer
 
 class LayerNorm(nn.Module):
     r""" LayerNorm that supports two data formats: channels_last (default) or channels_first.
@@ -55,6 +56,7 @@ class LayerNorm(nn.Module):
 
             return x
 
+
 class Point:
     def __init__(self, x=0, y=0):
         self.x = x  # X坐标
@@ -62,9 +64,11 @@ class Point:
 
 
 class Hilbert:
-    def __init__(self, n):
+    def __init__(self):
         # 初始化时计算 n=128, 64, 32, 16, 8, 4 的 Hilbert 代码到 XY 坐标映射
-        self.hilbert_map = self.precompute_hilbert_map(n)
+        self.hilbert_maps = {}
+        for n in [64, 32, 16, 8, 4]:
+            self.hilbert_maps[n] = self.precompute_hilbert_map(n)
 
     def precompute_hilbert_map(self, n):
         """预先计算给定 n 的 Hilbert 代码到 XY 坐标的映射"""
@@ -74,6 +78,7 @@ class Hilbert:
             self.d2xy(n, d, pt)
             hilbert_map[d] = (pt.x, pt.y)
         return hilbert_map
+
     def rot(self, n, pt, rx, ry):
         if ry == 0:
             if rx == 1:
@@ -109,11 +114,13 @@ class Hilbert:
             s //= 2
         return d
 
+
 class MambaLayer(nn.Module):
-    def __init__(self, dim, d_state=16, d_conv=4, expand=2, num_slices=None):
+    def __init__(self, dim, d_state=16, d_conv=4, expand=2, num_slices=None, hilBertMaps=None):
         super().__init__()
         self.dim = dim
         self.norm = nn.LayerNorm(dim)
+        self.hilbertMaps = hilBertMaps
         self.mamba = Mamba(
             d_model=dim,  # Model dimension d_model
             d_state=d_state,  # SSM state expansion factor
@@ -123,43 +130,41 @@ class MambaLayer(nn.Module):
             nslices=num_slices,
         )
 
-    def hilbertFlat(self, tensor, hilbertSize):
-        hilBert = Hilbert()
+    def hilbertFlat(self, tensor, hilbertMap):
         # 仅适用于正方形图片
         # 获取输入张量的形状
         batch_size, channel, h, w, d = tensor.shape
-
+        n = h * w * d
         # 初始化结果张量
-        flat = torch.zeros((batch_size, channel, h * w * d), dtype=tensor.dtype, device=tensor.device)
-
+        flat = torch.zeros((batch_size, channel, n), dtype=tensor.dtype, device=tensor.device)
+        frame_size = h * w  # 每一帧的大小
         for b in range(batch_size):
             for s in range(channel):
-                for k in range(d):  # 遍历深度维度
-                    for i in range(h):  # 遍历高度维度
-                        for j in range(w):  # 遍历宽度维度
-                            # 按照hilBert曲线的顺序填充张量
-                            flat[b, s, hilBert.xy2d(h, Point(j, i))] = tensor[b, s, i, j, k]
+                for i in range(n):
+                    # 填满一帧
+                    f = i // frame_size
+                    # 按照hilBert曲线的顺序填充张量
+                    flat[b, s, i] = tensor[b, s, hilbertMap[i%4096][0], hilbertMap[i%4096][1], f]
 
         return flat
 
-    def hilbertReshape(self, flatTensor):
+    def hilbertReshape(self, flatTensor, hilbertMap):
         batch_size, channel, hilbertSeq = flatTensor.shape
-        cubeSize  = int(math.ceil(hilbertSeq ** (1/3)))
-        # print(f"cubeSize:{cubeSize}")
+        print(hilbertSeq)
+        cubeSize = int(math.ceil(hilbertSeq ** (1 / 3)))
         # 初始化结果张量
-        reshapeTensor = torch.zeros((batch_size, channel, cubeSize, cubeSize, cubeSize), dtype=flatTensor.dtype, device=flatTensor.device)
-
+        reshapeTensor = torch.zeros((batch_size, channel, cubeSize, cubeSize, cubeSize), dtype=flatTensor.dtype,
+                                    device=flatTensor.device)
+        frame_size = cubeSize * cubeSize  # 每一帧的大小
         for b in range(batch_size):
             for s in range(channel):
-                for k in range(cubeSize):  # 遍历深度维度
-                    for i in range(cubeSize):  # 遍历高度维度
-                        for j in range(cubeSize):  # 遍历宽度维度
-                            # 按照hilBert曲线的顺序还原张量
-                            hilBert = Hilbert()
-                            reshapeTensor[b, s, i, j, k] = flatTensor[b, s, hilBert.xy2d(cubeSize, Point(j, i))]
+                for i in range(hilbertSeq):
+                    # 填满一帧
+                    f = i // frame_size
+                    # 按照hilBert曲线的顺序填充张量
+                    reshapeTensor[b, s, hilbertMap[i%4096][0], hilbertMap[i%4096][1], f] = flatTensor[b, s, i]
 
         return reshapeTensor
-
 
     def forward(self, x):
 
@@ -177,18 +182,17 @@ class MambaLayer(nn.Module):
         # out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
 
         # 后三位展平为一维进行扫描
-        hilBertSize = x.shape[-1]
-
-        x_HBflat = self.hilbertFlat(x).transpose(-1, -2)
+        frameSize = x.shape[-2]
+        hilBertMap = self.hilbertMaps[frameSize]
+        x_HBflat = self.hilbertFlat(x, hilBertMap).transpose(-1, -2)
         x_norm = self.norm(x_HBflat)
         x_mamba = self.mamba(x_norm)
         # 恢复为原来的形状
-        out = self.hilbertReshape(x_mamba.transpose(-1, -2))
+        out = self.hilbertReshape(x_mamba.transpose(-1, -2), hilBertMap)
 
         out = out + x_skip
 
         return out
-
 
 
 class MlpChannel(nn.Module):
@@ -250,9 +254,10 @@ class GSC(nn.Module):
 
 class MambaEncoder(nn.Module):
     def __init__(self, in_chans=1, depths=[2, 2, 2, 2], dims=[48, 96, 192, 384],
-                 drop_path_rate=0., layer_scale_init_value=1e-6, out_indices=[0, 1, 2, 3]):
+                 drop_path_rate=0., layer_scale_init_value=1e-6, out_indices=[0, 1, 2, 3], hilBertMaps=None):
         super().__init__()
 
+        self.hilBertMaps = hilBertMaps
         self.downsample_layers = nn.ModuleList()  # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
             nn.Conv3d(in_chans, dims[0], kernel_size=7, stride=2, padding=3),
@@ -274,7 +279,8 @@ class MambaEncoder(nn.Module):
             gsc = GSC(dims[i])
 
             stage = nn.Sequential(
-                *[MambaLayer(dim=dims[i], num_slices=num_slices_list[i]) for j in range(depths[i])]
+                *[MambaLayer(dim=dims[i], num_slices=num_slices_list[i], hilBertMaps=hilBertMaps) for j in
+                  range(depths[i])]
             )
 
             self.stages.append(stage)
@@ -308,6 +314,7 @@ class MambaEncoder(nn.Module):
     def forward(self, x):
         x = self.forward_features(x)
         return x
+
 
 # 论文：A Multilevel Multimodal Fusion Transformer for Remote Sensing Semantic Segmentation
 # 全网最全100➕即插即用模块GitHub地址：https://github.com/ai-dawang/PlugNPlay-Modules
@@ -403,7 +410,7 @@ class MambaEncoder(nn.Module):
 #         x_fused = self.fusion_conv(x1, x2, x4)
 #         return x_fused
 
-#Vision Transformer with Deformable Attention
+# Vision Transformer with Deformable Attention
 # class LayerNormProxy(nn.Module):
 #     def __init__(self, dim):
 #         super().__init__()
@@ -671,12 +678,16 @@ class SegMamba(nn.Module):
         # 加的SqueezeAndExcitation3D
         # self.channel_att_d2 = SqueezeAndExcitation3D(16)
 
+        # 初始化 Hilbert的HilbertMap
+        hilBertMaps = Hilbert().hilbert_maps
+
         self.spatial_dims = spatial_dims
         self.vit = MambaEncoder(in_chans,
                                 depths=depths,
                                 dims=feat_size,
                                 drop_path_rate=drop_path_rate,
                                 layer_scale_init_value=layer_scale_init_value,
+                                hilBertMaps=hilBertMaps
                                 )
         self.encoder1 = UnetrBasicBlock(
             spatial_dims=spatial_dims,
@@ -802,7 +813,6 @@ class SegMamba(nn.Module):
         x4 = outs[2]
         enc4 = self.encoder4(x4)
 
-
         # enc2_modify = self.conv_transpose1(enc2)
         # enc3_modify = self.conv_transpose1(self.conv_transpose2(enc3))
 
@@ -820,7 +830,7 @@ class SegMamba(nn.Module):
 
         # x4:  [4, 64, 16, 16, 16]
         # enc4:[4, 128, 16, 16, 16]
-        
+
         # enc2 = self.max_pool_layer(self.conv_layer_16_32(x_mean))
         # enc3 = self.max_pool_layer(self.conv_layer_32_64(enc2))
 
@@ -833,10 +843,8 @@ class SegMamba(nn.Module):
 
         dec0 = self.decoder2(dec1, enc1)
 
-
         # # 新增一层通道注意力
-        #decT = self.channel_att_d2(dec0)
-
+        # decT = self.channel_att_d2(dec0)
 
         # origin
         out = self.decoder1(dec0)
@@ -868,11 +876,10 @@ if __name__ == "__main__":
     # model = model.cuda(0)
     # summary(model, input_size=(3, 128, 128, 128))
 
-
     # 加载模型权重
     # 加载 checkpoint 文件
     checkpoint_path = r'/media/gx/code/data/cn24/program/SimLVSeg/lightning_logs/version_12/checkpoints/epoch=44-step=223784.ckpt'
-    #checkpoint = torch.load(checkpoint_path, map_location='cuda:0', weights_only=True)
+    # checkpoint = torch.load(checkpoint_path, map_location='cuda:0', weights_only=True)
     checkpoint = torch.load(checkpoint_path, map_location='cuda:0')
 
     # 获取 state_dict
@@ -884,16 +891,15 @@ if __name__ == "__main__":
         new_key = key.replace("model.", "")  # 移除 'model.' 前缀
         new_state_dict[new_key] = state_dict[key]
 
-
     # 初始化模型
     # model = UNet3D().cuda(1)  # 或者使用 UNet3DSmall()
     # model = OnlyUKAN3D().cuda(1)  # 或者使用 UNet3DSmall()
 
     # 加载移除前缀后的 state_dict
     model = SegMamba(in_chans=3,
-                    out_chans=1,
-                    depths=[2,2,2,2],
-                    feat_size=[48, 96, 192, 384])
+                     out_chans=1,
+                     depths=[2, 2, 2, 2],
+                     feat_size=[48, 96, 192, 384])
     model.load_state_dict(new_state_dict)
 
     # 将模型加载到 GPU 0

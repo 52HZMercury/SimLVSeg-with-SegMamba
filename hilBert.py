@@ -8,9 +8,11 @@ class Point:
 
 
 class Hilbert:
-    def __init__(self, n):
+    def __init__(self):
         # 初始化时计算 n=128, 64, 32, 16, 8, 4 的 Hilbert 代码到 XY 坐标映射
-        self.hilbert_map = self.precompute_hilbert_map(n)
+        self.hilbert_maps = {}
+        for n in [64, 32, 16, 8, 4]:
+            self.hilbert_maps[n] = self.precompute_hilbert_map(n)
 
     def precompute_hilbert_map(self, n):
         """预先计算给定 n 的 Hilbert 代码到 XY 坐标的映射"""
@@ -65,7 +67,12 @@ class Hilbert:
 
 
 if __name__ == "__main__":
-    hilbert = Hilbert(4)
+    hilbert = Hilbert()
     # hilbert.main()
-    for mapping in hilbert.hilbert_map.items():
-        print(mapping)
+    map = hilbert.hilbert_maps
+    print(len(map[8]))
+    print(map[32][4][0])
+    print(4099%4096)
+    # print( 8192 // 4096)
+    # for mapping in hilbert.hilbert_map.items():
+    #     print(mapping)
