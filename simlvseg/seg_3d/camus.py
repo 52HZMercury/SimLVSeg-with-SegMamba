@@ -191,6 +191,42 @@ class CAMUSDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.patients)
 
+    def pad_to_shape(self, arr):
+        """
+        将输入数组 arr 的图像数据从右边和底边填充为 128。
+
+        参数:
+        arr (numpy.ndarray): 输入数组，形状为 (F, H, W, C ) 或 (F, H, W)。
+
+        返回:
+        numpy.ndarray: 填充后的数组，形状为 (F, 128, 128, C) 或 (F, 128, 128)。
+        """
+        if arr.ndim == 4:
+            F, H, W, C= arr.shape
+        elif arr.ndim == 3:
+            F, H, W = arr.shape
+            C = 1
+        else:
+            raise ValueError("输入数组的维度必须为 3 或 4")
+
+        # 计算需要填充的大小
+        pad_height = 128 - H
+        pad_width = 128 - W
+
+        if pad_height < 0 or pad_width < 0:
+            raise ValueError("输入数组的尺寸不能大于 128x128")
+
+        # 创建填充配置
+        if arr.ndim == 4:
+            pad_widths = ((0, 0), (0, pad_height), (0, pad_width), (0, 0))
+        elif arr.ndim == 3:
+            pad_widths = ((0, 0), (0, pad_height), (0, pad_width))
+
+        # 应用填充
+        padded_arr = np.pad(arr, pad_width=pad_widths, mode='constant', constant_values=0)
+
+        return padded_arr
+
     def __getitem__(self, idx):
         patient = self.patients[idx]
 
@@ -205,6 +241,12 @@ class CAMUSDataset(torch.utils.data.Dataset):
 
         a4c_seq = (a4c_seq - self.mean) / self.std
 
+
+        # 使用填充函数填充到128
+        a4c_seq = self.pad_to_shape(a4c_seq)
+        a4c_gt = self.pad_to_shape(a4c_gt)
+
+
         if self.n_frames != a4c_seq.shape[0]:
             # TYPE 1: MIRRORING
             # a4c_seq = expand_and_mirror(a4c_seq, self.n_frames)
@@ -214,7 +256,10 @@ class CAMUSDataset(torch.utils.data.Dataset):
 
             # TYPE 2: PADDING TO ZERO
             valid_frame_num = np.sum(a4c_seq.sum(1).sum(-1).sum(-1) != 0)
-            tmp = np.zeros((self.n_frames, 112, 112, 3)).astype(a4c_seq.dtype)
+            # 112
+            # tmp = np.zeros((self.n_frames, 112, 112, 3)).astype(a4c_seq.dtype)
+            #128
+            tmp = np.zeros((self.n_frames, 128, 128, 3)).astype(a4c_seq.dtype)
             tmp[:a4c_seq.shape[0]] = a4c_seq
             a4c_seq = tmp.copy()
             tmp = np.zeros_like(a4c_seq)[..., 0]

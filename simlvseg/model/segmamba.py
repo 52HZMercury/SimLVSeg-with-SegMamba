@@ -221,6 +221,7 @@ class MambaLayer(nn.Module):
 
         # 后三位展平为一维进行扫描
         frameSize = x.shape[-2]
+
         hilBertMap = self.hilbertMaps[frameSize]
         x_HBflat = self.hilbertFlat(x, hilBertMap).transpose(-1, -2)
         x_norm = self.norm(x_HBflat)

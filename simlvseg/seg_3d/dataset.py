@@ -250,6 +250,5 @@ class Seg3DDatasetCamus(CAMUSDataset):
         data = a4c_seq
         label = a4c_gt
 
-        # print(data.shape, label.shape)
         return data, label
 
