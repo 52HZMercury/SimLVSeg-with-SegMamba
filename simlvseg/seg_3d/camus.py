@@ -297,8 +297,13 @@ class CAMUSDataset(torch.utils.data.Dataset):
         a4c_gt = np.float32(a4c_gt)
 
         # 获取ED和ES的标注
+        # a4c_gt = {
+        #     'label_index': [0, int(valid_frame_num - 1)],
+        #     'video_gt': a4c_gt,
+        # }
+
         a4c_gt = {
-            'label_index': [0, int(valid_frame_num - 1)],
+            'label_index': [0, self.n_frames - 1],
             'video_gt': a4c_gt,
         }
 

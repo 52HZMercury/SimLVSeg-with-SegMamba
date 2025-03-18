@@ -14,10 +14,10 @@ python scripts/seg_3d/seg_3d_train.py\
     --mean 0.12741163 0.1279413 0.12912785 \
     --std 0.19557191 0.19562256 0.1965878 \
     --encoder "SegMamba"\
-    --frames 128 \
+    --frames 32 \
     --period 1 \
     --num_workers 2 \
-    --batch_size 4 \
+    --batch_size 12 \
     --epochs 60  \
     --val_check_interval 0.5 \
     --seed 42
@@ -32,12 +32,12 @@ python scripts/seg_3d/seg_3d_camus_train.py\
     --mean 0.12741163 0.1279413 0.12912785 \
     --std 0.19557191 0.19562256 0.1965878 \
     --encoder "SegMamba"\
-    --frames 128 \
+    --frames 32 \
     --period 1 \
     --num_workers 2 \
-    --batch_size 4 \
+    --batch_size 12 \
     --epochs 60  \
-    --val_check_interval 0.5 \
+    --val_check_interval 0.25 \
     --seed 42
 ```
 
@@ -49,12 +49,12 @@ python scripts/seg_3d/seg_3d_train.py\
     --mean 0.12741163 0.1279413 0.12912785 \
     --std 0.19557191 0.19562256 0.1965878 \
     --encoder "SegMamba"\
-    --frames 128 \
+    --frames 32 \
     --period 1 \
     --num_workers 2 \
-    --batch_size 4 \
+    --batch_size 12 \
     --epochs 60  \
-    --val_check_interval 0.5 \
+    --val_check_interval 0.25 \
     --seed 42
 ```
 
@@ -192,4 +192,6 @@ python scripts/seg_3d/seg_3d_train.py \
 
 
 mydata_path: 7508: /workdir2t/cn24/data/EchoNet-Dynamic 
-             6419: /workdir1/echo_dataset/EchoNet-Dynamic 
+             6419: /workdir1/echo_dataset/EchoNet-Dynamic
+
+>>output.log 2>&1 &

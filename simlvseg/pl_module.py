@@ -218,18 +218,18 @@ class SegModule(BaseModule):
 
     def configure_optimizers(self):
         # AdamW
-        # optimizer = torch.optim.AdamW(
-        #     self.parameters(), lr=4e-4,
-        #     weight_decay=1e-5, amsgrad=True,
-        # )
+        optimizer = torch.optim.AdamW(
+            self.parameters(), lr=20e-4,
+            weight_decay=1e-5, amsgrad=True,
+        )
 
 
         # SGD
-        optimizer = torch.optim.SGD(
-            self.parameters(), lr=0.1,  # 设置学习率
-            momentum=0.9,  # 设置动量
-            weight_decay=1e-5  # 设置权重衰减
-        )
+        # optimizer = torch.optim.SGD(
+        #     self.parameters(), lr=0.1,  # 设置学习率
+        #     momentum=0.9,  # 设置动量
+        #     weight_decay=1e-5  # 设置权重衰减
+        # )
 
         # MultiStepLR
         # 默认
