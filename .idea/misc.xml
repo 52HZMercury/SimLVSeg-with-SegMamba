@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="cn_slvs" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="cn_slvs_6419" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="torch_2.1" project-jdk-type="Python SDK" />
 </project>

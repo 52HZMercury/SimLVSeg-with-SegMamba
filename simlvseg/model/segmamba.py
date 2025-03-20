@@ -23,7 +23,7 @@ import torch.nn.functional as F
 
 import numpy as np
 from timm.models.layers import trunc_normal_
-
+import math
 
 # from torchsummary import summary
 # from utils.image_visualizer import ImageVisualizer
@@ -57,68 +57,163 @@ class LayerNorm(nn.Module):
             return x
 
 
-class Point:
-    def __init__(self, x=0, y=0):
-        self.x = x  # X坐标
-        self.y = y  # Y坐标
+# class Point:
+#     def __init__(self, x=0, y=0):
+#         self.x = x  # X坐标
+#         self.y = y  # Y坐标
+#
+#
+# class Hilbert:
+#     def __init__(self):
+#         self.hilbert_maps = {}
+#         for n in [64, 32, 16, 8, 4]:
+#             self.hilbert_maps[n] = self.precompute_hilbert_map(n)
+#
+#     def precompute_hilbert_map(self, n):
+#         hilbert_map = []
+#         for d in range(n * n):
+#             pt = Point()
+#             self.d2xy(n, d, pt)
+#             hilbert_map.append([pt.x, pt.y])
+#         return torch.tensor(hilbert_map, dtype=torch.long)  # 存储为张量
+#
+#     def rot(self, n, pt, rx, ry):
+#         if ry == 0:
+#             if rx == 1:
+#                 pt.x = n - 1 - pt.x
+#                 pt.y = n - 1 - pt.y
+#
+#             # Swap x and y
+#             pt.x, pt.y = pt.y, pt.x
+#
+#     # Hilbert代码到XY坐标
+#     def d2xy(self, n, d, pt):
+#         pt.x, pt.y = 0, 0
+#         t = d
+#         s = 1
+#         while s < n:
+#             rx = 1 & (t // 2)
+#             ry = 1 & (t ^ rx)
+#             self.rot(s, pt, rx, ry)
+#             pt.x += s * rx
+#             pt.y += s * ry
+#             t //= 4
+#             s *= 2
+#
+#     # XY坐标到Hilbert代码转换
+#     def xy2d(self, n, pt):
+#         d = 0
+#         s = n // 2
+#         while s > 0:
+#             rx = 1 if (pt.x & s) > 0 else 0
+#             ry = 1 if (pt.y & s) > 0 else 0
+#             d += s * s * ((3 * rx) ^ ry)
+#             self.rot(s, pt, rx, ry)
+#             s //= 2
+#         return d
 
 
-class Hilbert:
+class MooreCurve:
     def __init__(self):
-        self.hilbert_maps = {}
-        for n in [64, 32, 16, 8, 4]:
-            self.hilbert_maps[n] = self.precompute_hilbert_map(n)
+        self.mooreCurveMaps = {}
+        # 预计算常见尺寸的映射表
+        for side_length in [64, 32, 16, 8, 4]:
+            self.mooreCurveMaps[side_length] = self.precompute_moore_curve_map(side_length)
 
-    def precompute_hilbert_map(self, n):
-        hilbert_map = []
-        for d in range(n * n):
-            pt = Point()
-            self.d2xy(n, d, pt)
-            hilbert_map.append([pt.x, pt.y])
-        return torch.tensor(hilbert_map, dtype=torch.long)  # 存储为张量
+    def precompute_moore_curve_map(self, side_length):
+        """预计算指定边长的摩尔曲线映射表"""
+        # 计算阶数（根据边长推导）
+        n = int(math.log2(side_length))
 
-    def rot(self, n, pt, rx, ry):
-        if ry == 0:
-            if rx == 1:
-                pt.x = n - 1 - pt.x
-                pt.y = n - 1 - pt.y
+        # 生成坐标序列
+        points = self.moore_curve_order_to_coords(n)
 
-            # Swap x and y
-            pt.x, pt.y = pt.y, pt.x
+        # 计算坐标范围
+        min_x = min(p[0] for p in points)
+        min_y = min(p[1] for p in points)
 
-    # Hilbert代码到XY坐标
-    def d2xy(self, n, d, pt):
-        pt.x, pt.y = 0, 0
-        t = d
-        s = 1
-        while s < n:
-            rx = 1 & (t // 2)
-            ry = 1 & (t ^ rx)
-            self.rot(s, pt, rx, ry)
-            pt.x += s * rx
-            pt.y += s * ry
-            t //= 4
-            s *= 2
+        curve_map = []
+        # 填充遍历顺序
+        for step, (x, y) in enumerate(points):
+            curve_map.append((y - min_y, x - min_x))
 
-    # XY坐标到Hilbert代码转换
-    def xy2d(self, n, pt):
-        d = 0
-        s = n // 2
-        while s > 0:
-            rx = 1 if (pt.x & s) > 0 else 0
-            ry = 1 if (pt.y & s) > 0 else 0
-            d += s * s * ((3 * rx) ^ ry)
-            self.rot(s, pt, rx, ry)
-            s //= 2
-        return d
+        return torch.tensor(curve_map, dtype=torch.long)
+
+    def generate_moore_curve_string(self, n):
+        """生成n阶L-system字符串"""
+        axiom = 'LFL+F+LFL'
+        rules = {
+            'L': '-RF+LFL+FR-',
+            'R': '+LF-RFR-FL+',
+        }
+        current = axiom
+        for _ in range(n - 1):  # 替换次数为n-1次
+            new_str = []
+            for char in current:
+                new_str.append(rules.get(char, char))  # 应用规则或保留原字符
+            current = ''.join(new_str)
+        return current
+
+    def moore_curve_order_to_coords(self, n):
+        """解析L-system字符串生成坐标序列"""
+        string = self.generate_moore_curve_string(n)
+
+        # 初始化状态
+        x, y = 0, 0
+        direction = 1  # 0:东 1:北 2:西 3:南
+        points = [(x, y)]  # 包含起点
+
+        # 解析指令
+        for char in string:
+            if char == 'F':
+                # 根据当前方向移动
+                if direction == 0:
+                    x += 1
+                elif direction == 1:
+                    y += 1
+                elif direction == 2:
+                    x -= 1
+                elif direction == 3:
+                    y -= 1
+                points.append((x, y))
+            elif char == '+':
+                direction = (direction - 1) % 4  # 右转
+            elif char == '-':
+                direction = (direction + 1) % 4  # 左转
+
+        return points
+
+    @staticmethod
+    def coords_to_2d_array(points):
+        """将坐标序列转换为二维数组（辅助函数）"""
+        if not points:
+            return []
+
+        # 计算坐标范围
+        min_x = min(p[0] for p in points)
+        max_x = max(p[0] for p in points)
+        min_y = min(p[1] for p in points)
+        max_y = max(p[1] for p in points)
+
+        # 初始化数组
+        rows = max_y - min_y + 1
+        cols = max_x - min_x + 1
+        grid = [[0 for _ in range(cols)] for _ in range(rows)]
+
+        # 填充遍历顺序
+        for step, (x, y) in enumerate(points):
+            grid[y - min_y][x - min_x] = step + 1
+
+        return grid
+
 
 
 class MambaLayer(nn.Module):
-    def __init__(self, dim, d_state=16, d_conv=4, expand=2, num_slices=None, hilBertMaps=None):
+    def __init__(self, dim, d_state=16, d_conv=4, expand=2, num_slices=None, mooreMaps=None):
         super().__init__()
         self.dim = dim
         self.norm = nn.LayerNorm(dim)
-        self.hilbertMaps = hilBertMaps
+        self.mooreMaps = mooreMaps
         self.mamba = Mamba(
             d_model=dim,  # Model dimension d_model
             d_state=d_state,  # SSM state expansion factor
@@ -165,11 +260,11 @@ class MambaLayer(nn.Module):
     #
     #     return reshapeTensor
 
-    def hilbertFlat(self, tensor, hilbertMap):
+    def mooreFlat(self, tensor, mooreMap):
         B, C, h, w, d = tensor.shape
         n = h  # 假设输入为立方体，h == w
         device = tensor.device
-        coord_map = hilbertMap.to(device)
+        coord_map = mooreMap.to(device)
 
         total_elements = h * w * d
         i_all = torch.arange(total_elements, device=device)
@@ -183,10 +278,10 @@ class MambaLayer(nn.Module):
         flat = tensor[:, :, x_idx, y_idx, f_idx]
         return flat
 
-    def hilbertReshape(self, flatTensor, hilbertMap):
+    def mooreReshape(self, flatTensor, mooreMap):
         B, C, total_elements = flatTensor.shape
         device = flatTensor.device
-        hw = hilbertMap.size(0)
+        hw = mooreMap.size(0)
         h = int(math.sqrt(hw))
         w = h
         d = total_elements // hw
@@ -197,7 +292,7 @@ class MambaLayer(nn.Module):
         f_idx = i_all // frame_size
         i_in_frame = i_all % frame_size
 
-        coord_map = hilbertMap.to(device)
+        coord_map = mooreMap.to(device)
         x_y = coord_map[i_in_frame]
         x_idx, y_idx = x_y[:, 0], x_y[:, 1]
 
@@ -212,22 +307,21 @@ class MambaLayer(nn.Module):
         n_tokens = x.shape[2:].numel()
         img_dims = x.shape[2:]
 
-        # # 后三位展平为一维进行扫描
+        # origin 后三位展平为一维进行扫描
         # x_flat = x.reshape(B, C, n_tokens).transpose(-1, -2)
         # x_norm = self.norm(x_flat)
         # x_mamba = self.mamba(x_norm)
         # # 恢复为原来的形状
         # out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
 
-        # 后三位展平为一维进行扫描
+        # MRscan 后三位展平为一维进行扫描
         frameSize = x.shape[-2]
-
-        hilBertMap = self.hilbertMaps[frameSize]
-        x_HBflat = self.hilbertFlat(x, hilBertMap).transpose(-1, -2)
-        x_norm = self.norm(x_HBflat)
+        mooreMap = self.mooreMaps[frameSize]
+        x_MRflat = self.mooreFlat(x, mooreMap).transpose(-1, -2)
+        x_norm = self.norm(x_MRflat)
         x_mamba = self.mamba(x_norm)
         # 恢复为原来的形状
-        out = self.hilbertReshape(x_mamba.transpose(-1, -2), hilBertMap)
+        out = self.mooreReshape(x_mamba.transpose(-1, -2), mooreMap)
 
         out = out + x_skip
 
@@ -293,10 +387,10 @@ class GSC(nn.Module):
 
 class MambaEncoder(nn.Module):
     def __init__(self, in_chans=1, depths=[2, 2, 2, 2], dims=[48, 96, 192, 384],
-                 drop_path_rate=0., layer_scale_init_value=1e-6, out_indices=[0, 1, 2, 3], hilBertMaps=None):
+                 drop_path_rate=0., layer_scale_init_value=1e-6, out_indices=[0, 1, 2, 3], mooreMaps=None):
         super().__init__()
 
-        self.hilBertMaps = hilBertMaps
+        self.mooreMaps = mooreMaps
         self.downsample_layers = nn.ModuleList()  # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
             nn.Conv3d(in_chans, dims[0], kernel_size=7, stride=2, padding=3),
@@ -318,7 +412,7 @@ class MambaEncoder(nn.Module):
             gsc = GSC(dims[i])
 
             stage = nn.Sequential(
-                *[MambaLayer(dim=dims[i], num_slices=num_slices_list[i], hilBertMaps=hilBertMaps) for j in
+                *[MambaLayer(dim=dims[i], num_slices=num_slices_list[i], mooreMaps=mooreMaps) for j in
                   range(depths[i])]
             )
 
@@ -717,8 +811,8 @@ class SegMamba(nn.Module):
         # 加的SqueezeAndExcitation3D
         # self.channel_att_d2 = SqueezeAndExcitation3D(16)
 
-        # 初始化 Hilbert的HilbertMap
-        hilBertMaps = Hilbert().hilbert_maps
+        # 初始化 moore的mooreMap
+        mooreMaps = MooreCurve().mooreCurveMaps
 
         self.spatial_dims = spatial_dims
         self.vit = MambaEncoder(in_chans,
@@ -726,7 +820,7 @@ class SegMamba(nn.Module):
                                 dims=feat_size,
                                 drop_path_rate=drop_path_rate,
                                 layer_scale_init_value=layer_scale_init_value,
-                                hilBertMaps=hilBertMaps
+                                mooreMaps=mooreMaps
                                 )
         self.encoder1 = UnetrBasicBlock(
             spatial_dims=spatial_dims,

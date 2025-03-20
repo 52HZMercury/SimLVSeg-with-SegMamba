@@ -35,7 +35,7 @@ python scripts/seg_3d/seg_3d_camus_train.py\
     --frames 32 \
     --period 1 \
     --num_workers 2 \
-    --batch_size 12 \
+    --batch_size 4 \
     --epochs 60  \
     --val_check_interval 0.25 \
     --seed 42
@@ -52,7 +52,7 @@ python scripts/seg_3d/seg_3d_train.py\
     --frames 32 \
     --period 1 \
     --num_workers 2 \
-    --batch_size 12 \
+    --batch_size 4 \
     --epochs 60  \
     --val_check_interval 0.25 \
     --seed 42

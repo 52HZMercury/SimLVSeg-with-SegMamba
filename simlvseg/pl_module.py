@@ -141,8 +141,11 @@ class SegModule(BaseModule):
             img_size=None,
             # loss_type='dice',
             # loss_type='jaccard',
-            loss_type='hccdice',
-            # loss_type='tversky',
+            # loss_type='hccdice',
+            loss_type='tversky',
+            # loss_type='focal'
+            # loss_type='dice+Jaccard'
+            # loss_type='hccmse'
     ):
         super().__init__()
 
@@ -219,7 +222,7 @@ class SegModule(BaseModule):
     def configure_optimizers(self):
         # AdamW
         optimizer = torch.optim.AdamW(
-            self.parameters(), lr=20e-4,
+            self.parameters(), lr=5e-4,
             weight_decay=1e-5, amsgrad=True,
         )
 

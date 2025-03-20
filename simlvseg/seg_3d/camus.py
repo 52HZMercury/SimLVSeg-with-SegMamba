@@ -255,16 +255,16 @@ class CAMUSDataset(torch.utils.data.Dataset):
             # a4c_gt = tmp.copy()
 
             # TYPE 2: PADDING TO ZERO
-            valid_frame_num = np.sum(a4c_seq.sum(1).sum(-1).sum(-1) != 0)
-            # 112
+            # valid_frame_num = np.sum(a4c_seq.sum(1).sum(-1).sum(-1) != 0)
+            # # 112
             # tmp = np.zeros((self.n_frames, 112, 112, 3)).astype(a4c_seq.dtype)
             #128
-            tmp = np.zeros((self.n_frames, 128, 128, 3)).astype(a4c_seq.dtype)
-            tmp[:a4c_seq.shape[0]] = a4c_seq
-            a4c_seq = tmp.copy()
-            tmp = np.zeros_like(a4c_seq)[..., 0]
-            tmp[:a4c_gt.shape[0]] = a4c_gt
-            a4c_gt = tmp.copy()
+            # tmp = np.zeros((self.n_frames, 128, 128, 3)).astype(a4c_seq.dtype)
+            # tmp[:a4c_seq.shape[0]] = a4c_seq
+            # a4c_seq = tmp.copy()
+            # tmp = np.zeros_like(a4c_seq)[..., 0]
+            # tmp[:a4c_gt.shape[0]] = a4c_gt
+            # a4c_gt = tmp.copy()
 
             # TYPE 3:
             # a4c_seq = pad_array(a4c_seq, self.n_frames)
@@ -279,10 +279,10 @@ class CAMUSDataset(torch.utils.data.Dataset):
             # a4c_gt = pad_array_with_origin_images_gt(a4c_gt, self.n_frames)
 
             # TYPE 6:
-            # valid_frame_num = np.sum(a4c_seq.sum(1).sum(-1).sum(-1) != 0)
-            # a4c_seq = valid_crop_resize(a4c_seq, valid_frame_num, [1], self.n_frames)
-            # a4c_gt = a4c_gt[:, :, :, None]
-            # a4c_gt = valid_crop_resize(a4c_gt, valid_frame_num,[1], self.n_frames)[...,0]  # [...，0]中..表示保留了前面的所有维度，0表示选择最后一维的第一个元荼
+            valid_frame_num = np.sum(a4c_seq.sum(1).sum(-1).sum(-1) != 0)
+            a4c_seq = valid_crop_resize(a4c_seq, valid_frame_num, [1], self.n_frames)
+            a4c_gt = a4c_gt[:, :, :, None]
+            a4c_gt = valid_crop_resize(a4c_gt, valid_frame_num,[1], self.n_frames)[...,0]  # [...，0]中..表示保留了前面的所有维度，0表示选择最后一维的第一个元荼
 
         else:
             valid_frame_num = self.n_frames
@@ -302,6 +302,7 @@ class CAMUSDataset(torch.utils.data.Dataset):
         #     'video_gt': a4c_gt,
         # }
 
+        #all
         a4c_gt = {
             'label_index': [0, self.n_frames - 1],
             'video_gt': a4c_gt,
