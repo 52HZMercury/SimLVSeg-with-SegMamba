@@ -59,7 +59,23 @@ class Hilbert:
         return d
 
     def main(self):
-        n = 4
+        n = 8
+        # 声明一个 n x n 的二维数组并初始化为 0
+        grid = [[0 for _ in range(n)] for _ in range(n)]
+
+        for i in range(n * n):
+            point = Point()  # 创建 Point 实例
+            self.d2xy(n, i, point)  # 使用同一个 point 实例
+            if 0 <= point.x < n and 0 <= point.y < n:  # 确保索引在有效范围内
+                grid[point.x][point.y] = i
+
+        # 打印二维数组
+        for i in range(n):
+            for j in range(n):
+                print(f"{grid[i][j]:2}", end=" ")
+            print()
+
+        print()
         for i in range(n):
             for j in range(n):
                 print(f"{self.xy2d(n, Point(j, i)):2}", end=" ")
@@ -68,11 +84,11 @@ class Hilbert:
 
 if __name__ == "__main__":
     hilbert = Hilbert()
-    # hilbert.main()
+    hilbert.main()
     map = hilbert.hilbert_maps
-    print(len(map[8]))
-    print(map[32][4][0])
-    print(4099%4096)
+    # print(len(map[8]))
+    # print(map[32][4][0])
+    # print(4099%4096)
     # print( 8192 // 4096)
     # for mapping in hilbert.hilbert_map.items():
     #     print(mapping)

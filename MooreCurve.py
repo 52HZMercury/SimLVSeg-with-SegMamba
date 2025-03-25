@@ -48,7 +48,7 @@ class MooreCurve:
 
         # 初始化状态
         x, y = 0, 0
-        direction = 1  # 0:东 1:北 2:西 3:南
+        direction = 0  # 0:西 1:北 2:东 3:南
         points = [(x, y)]  # 包含起点
 
         # 解析指令
