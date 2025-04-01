@@ -139,9 +139,9 @@ class SegModule(BaseModule):
             weights=None,
             pretrained_type='encoder',
             img_size=None,
-            # loss_type='dice',
+            loss_type='dice',
             # loss_type='jaccard',
-            loss_type='hccdice',
+            # loss_type='hccdie',
             # loss_type='tversky',
             # loss_type='focal'
             # loss_type='dice+Jaccard'
@@ -221,18 +221,18 @@ class SegModule(BaseModule):
 
     def configure_optimizers(self):
         # AdamW
-        # optimizer = torch.optim.AdamW(
-        #     self.parameters(), lr=5e-4,
-        #     weight_decay=1e-5, amsgrad=True,
-        # )
+        optimizer = torch.optim.AdamW(
+            self.parameters(), lr=4e-4,
+            weight_decay=1e-5, amsgrad=True,
+        )
 
 
         # SGD
-        optimizer = torch.optim.SGD(
-            self.parameters(), lr=0.15,  # 设置学习率
-            momentum=0.9,  # 设置动量
-            weight_decay=1e-5  # 设置权重衰减
-        )
+        # optimizer = torch.optim.SGD(
+        #     self.parameters(), lr=0.1,  # 设置学习率
+        #     momentum=0.9,  # 设置动量
+        #     weight_decay=1e-5  # 设置权重衰减
+        # )
 
         # MultiStepLR
         # 默认

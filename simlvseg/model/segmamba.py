@@ -161,7 +161,7 @@ class MooreCurve:
         # 初始化状态
         x, y = 0, 0
         direction = 2  # 0:东 1:北 2:西 3:南
-        points = [(x, y)]  # 包含起点
+        points = [(x, y)]   # 包含起点
 
         # 解析指令
         for char in string:

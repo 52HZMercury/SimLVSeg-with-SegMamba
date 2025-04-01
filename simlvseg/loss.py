@@ -83,7 +83,7 @@ class SegLoss(nn.Module):
             loss += self.jaccard_loss(preds, labels)
 
         if 'dice+Jaccard' in self.loss_type:
-            loss += 0.5 * self.dice_loss(preds, labels) + 0.5 * self.jaccard_loss(preds, labels)
+            loss += 0.2 * self.dice_loss(preds, labels) + 0.8 * self.jaccard_loss(preds, labels)
 
         if 'hccmse' in self.loss_type:
             loss += (self.mse_loss(preds, labels) + 0.1 * self.mse_loss(preds, labels))
