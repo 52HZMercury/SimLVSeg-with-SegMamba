@@ -82,7 +82,7 @@ class SegLoss(nn.Module):
         if 'jaccard' in self.loss_type:
             loss += self.jaccard_loss(preds, labels)
 
-        if 'dice+Jaccard' in self.loss_type:
+        if 'dice+jaccard' in self.loss_type:
             loss += 0.2 * self.dice_loss(preds, labels) + 0.8 * self.jaccard_loss(preds, labels)
 
         if 'hccmse' in self.loss_type:
@@ -94,5 +94,11 @@ class SegLoss(nn.Module):
         if 'onlyhcc' in self.loss_type:
             loss += self.spearman(preds, labels)
             # loss += self.pearson(preds, labels)
+
+        if 'dice+jaccard+focal' in self.loss_type:
+            # loss += 0.4 * self.dice_loss(preds, labels) + 0.3 * self.jaccard_loss(preds, labels) + 0.3 * self.focal_loss(preds, labels)
+            loss += 0.6 * self.dice_loss(preds, labels) + 0.2 * self.jaccard_loss(preds, labels) + 0.2 * self.focal_loss(preds, labels)
+            # loss += 0.2 * self.dice_loss(preds, labels) + 0.6 * self.jaccard_loss(preds, labels) + 0.2 * self.focal_loss(preds, labels)
+            # loss += 0.2 * self.dice_loss(preds, labels) + 0.2 * self.jaccard_loss(preds, labels) + 0.6 * self.focal_loss(preds, labels)
 
         return loss
