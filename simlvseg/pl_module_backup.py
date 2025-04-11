@@ -1,13 +1,53 @@
-import torch.nn.functional as F
 import pytorch_lightning as pl
 import segmentation_models_pytorch as smp
 import segmentation_models_pytorch.utils as smp_utils
 import torch
-
+import numpy as np
 from .model import get_model
 from .loss import SegLoss
 from .utils import get_crop_from_coors
-import torch, gc
+from medpy.metric.binary import assd as medpy_assd
+from medpy.metric.binary import hd95 as medpy_hd95
+
+# 计算ASSD（Average Symmetric Surface Distance）并返回
+def calculate_assd(pred, target):
+    """
+    Calculate the Average Symmetric Surface Distance (ASSD) between the predicted and target segmentation
+    using medpy's assd.
+    """
+    pred = pred > 0.5  # 假设0.5是阈值
+    target = target > 0.5
+
+    # 使用medpy的ASSD计算
+    return medpy_assd(target.cpu().numpy(), pred.cpu().numpy(), voxelspacing=[1.0, 1.0, 1.0])
+
+
+def calculate_hd95(pred, target):
+    """
+    Calculate the Average Symmetric Surface Distance (ASSD) between the predicted and target segmentation
+    using medpy's assd.
+    """
+    pred = pred > 0.5  # 假设0.5是阈值
+    target = target > 0.5
+
+    # 使用medpy的hd95计算
+    return medpy_hd95(target.cpu().numpy(), pred.cpu().numpy(), voxelspacing=[1.0, 1.0, 1.0])
+
+
+
+# 计算敏感度 (Sensitivity)
+def calculate_sensitivity(pred, target):
+    """
+    Calculate the sensitivity (recall) of the segmentation: TP / (TP + FN).
+    """
+    pred = pred > 0.5  # 阈值
+    target = target > 0.5
+
+    tp = ((pred == 1) & (target == 1)).sum().item()  # 真正例
+    fn = ((pred == 0) & (target == 1)).sum().item()  # 假负例
+
+    sensitivity = tp / (tp + fn + 1e-6)  # 加上一个小值避免除零
+    return sensitivity
 
 
 class BaseModule(pl.LightningModule):
@@ -20,21 +60,13 @@ class BaseModule(pl.LightningModule):
     def configure_optimizers(self):
         raise NotImplementedError
 
-    def postprocess_batch_preds_and_targets_camus(self, preds, labels):
-        raise NotImplementedError
-
     def calculate_metrics(self, set_name, preds, labels):
         # Calculate the metrics
         metrics = [[name, fn(preds, labels)] for name, fn in self.metrics.items()]
+
         # Print the metrics on the terminal
         for name, value in metrics:
             self.log(f"{set_name}_{name}", value, prog_bar=True, logger=True)
-
-    def calculate_metrics_batch(self, preds, labels):
-        # Calculate the metrics
-        metrics = [[name, fn(preds, labels)] for name, fn in self.metrics.items()]
-
-        return metrics
 
     def val_test_epoch_end(self, set_name, step_outputs):
         preds = []
@@ -52,40 +84,6 @@ class BaseModule(pl.LightningModule):
         self.log(f"{set_name}_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         self.calculate_metrics(set_name, preds, labels)
-
-        # camus
-        # losses = []
-        # value_dsc=[]
-        # value_iou=[]
-        # value_dice_loss=[]
-        #
-        # for output in step_outputs:
-        #     batch_pred = output['batch_preds']
-        #     batch_labels = output['batch_labels']
-        #
-        #     loss = self.criterion(batch_pred, batch_labels)
-        #     losses.append(loss)
-        #
-        #     metrics = self.calculate_metrics_batch(batch_pred, batch_labels)
-        #     # metrics[0][1] value_dsc
-        #     value_dsc.append(metrics[0][1])
-        #     # metrics[1][1] value_iou
-        #     value_iou.append(metrics[1][1])
-        #     # metrics[2][1] value_dice_loss
-        #     value_dice_loss.append(metrics[2][1])
-        #
-        # # 计算所有 loss 的平均值
-        # loss_mean = sum(losses) / len(losses)
-        # self.log(f"{set_name}_loss", loss_mean, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        # # 计算所有 dsc 的平均值
-        # avg_dsc = sum(value_dsc) / len(value_dsc) if value_dsc else 0
-        # self.log(f"{set_name}_dsc", avg_dsc, prog_bar=True, logger=True)
-        # # 计算所有 iou 的平均值
-        # avg_iou = sum(value_iou) / len(value_iou) if value_iou else 0
-        # self.log(f"{set_name}_iou", avg_iou, prog_bar=True, logger=True)
-        # # 计算所有 dice_loss 的平均值
-        # avg_dice_loss = sum(value_dice_loss) / len(value_dice_loss) if value_dice_loss else 0
-        # self.log(f"{set_name}_dice_loss", avg_dice_loss, prog_bar=True, logger=True)
 
     def forward(self, x):
         return self.model.forward(x)
@@ -117,36 +115,120 @@ class BaseModule(pl.LightningModule):
 
         preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
         # preds, labels = self.postprocess_batch_preds_and_targets_camus(preds, targets)
-        # preds, labels = self.postprocess_batch_preds_and_targets_camus_val(preds, targets)
+
+        # 将输出保存到实例属性中
+        if not hasattr(self, 'validation_step_outputs'):
+            self.validation_step_outputs = []
+        self.validation_step_outputs.append({'batch_preds': preds, 'batch_labels': labels})
 
         return {'batch_preds': preds, 'batch_labels': labels}
 
-    def validation_epoch_end(self, validation_step_outputs):
-        return self.val_test_epoch_end('val', validation_step_outputs)
+    def on_validation_epoch_end(self):
+        # 使用保存的输出
+        self.val_test_epoch_end('val', self.validation_step_outputs)
+        # 清空保存的输出
+        self.validation_step_outputs.clear()
 
     def test_step(self, batch, batch_idx):
-        return self.validation_step(batch, batch_idx)
+        imgs, targets = batch
 
-    def test_epoch_end(self, test_step_outputs):
-        return self.val_test_epoch_end('test', test_step_outputs)
+        imgs = self.preprocess_batch_imgs(imgs)
+
+        preds = self.forward(imgs)
+
+        preds, labels = self.postprocess_batch_preds_and_targets(preds, targets)
+        # preds, labels = self.postprocess_batch_preds_and_targets_camus_test(preds, targets)
+
+        # 计算敏感度、ASSD和HD95
+        sensitivity = calculate_sensitivity(preds[0], labels[0])
+        assd = calculate_assd(preds[0], labels[0])
+        hd95 = calculate_hd95(labels[0], preds[0])
+
+        # 计算标准指标（如 dsc, iou, dice_loss）
+        dsc = self.metrics['dsc'](preds, labels)
+        iou = self.metrics['iou'](preds, labels)
+
+        # 将所有结果保存到实例属性中
+        if not hasattr(self, 'test_step_outputs'):
+            self.test_step_outputs = []
+        self.test_step_outputs.append({
+            'batch_preds': preds,
+            'batch_labels': labels,
+            'sensitivity': sensitivity,
+            'assd': assd,
+            'hd95': hd95,
+            'test_dsc': dsc,
+            'test_iou': iou,
+        })
+
+        return {
+            'batch_preds': preds,
+            'batch_labels': labels,
+            'sensitivity': sensitivity,
+            'assd': assd,
+            'hd95': hd95,
+            'test_dsc': dsc,
+            'test_iou': iou,
+        }
+
+    def on_test_epoch_end(self):
+        # 提取所有的指标并计算均值和标准差
+        sensitivities = [x['sensitivity'] for x in self.test_step_outputs]
+        assds = [x['assd'] for x in self.test_step_outputs]  # 这里改成ASSD
+        hd95s = [x['hd95'] for x in self.test_step_outputs]
+        dscs = [x['test_dsc'] for x in self.test_step_outputs]
+        ious = [x['test_iou'] for x in self.test_step_outputs]
+
+        # 计算均值和标准差
+        avg_sensitivity = torch.tensor(sensitivities).mean()
+        std_sensitivity = torch.tensor(sensitivities).std()
+        avg_assd = torch.tensor(assds).mean()  # 使用ASSD替代ASD
+        std_assd = torch.tensor(assds).std()  # 使用ASSD替代ASD
+        avg_hd95 = torch.tensor(hd95s).mean()
+        std_hd95 = torch.tensor(hd95s).std()
+        avg_dsc = torch.tensor(dscs).mean()
+        std_dsc = torch.tensor(dscs).std()
+        avg_iou = torch.tensor(ious).mean()
+        std_iou = torch.tensor(ious).std()
+
+        # 记录均值和标准差
+        self.log("avg_test_sensitivity", avg_sensitivity)
+        self.log("std_test_sensitivity", std_sensitivity)
+
+        self.log("avg_test_assd", avg_assd)  # 使用ASSD替代ASD
+        self.log("std_test_assd", std_assd)  # 使用ASSD替代ASD
+
+        self.log("avg_test_hd95", avg_hd95)
+        self.log("std_test_hd95", std_hd95)
+
+        self.log("avg_test_dsc", avg_dsc)
+        self.log("std_test_dsc", std_dsc)
+
+        self.log("avg_test_iou", avg_iou)
+        self.log("std_test_iou", std_iou)
+
+        # 清空保存的测试输出
+        self.test_step_outputs.clear()
 
 
 class SegModule(BaseModule):
-    def __init__(
-            self,
-            encoder_name,
-            weights=None,
-            pretrained_type='encoder',
-            img_size=None,
-            # loss_type='dice',
-            # loss_type='jaccard',
-            # loss_type='hccdie',
-            # loss_type='tversky',
-            # loss_type='focal'
-            # loss_type='dice+jaccard'
-            # loss_type='hccmse'
-            loss_type='dice+jaccard+focal',
-    ):
+    def __init__(self,
+                 encoder_name,
+                 weights=None,
+                 pretrained_type='encoder',
+                 img_size=None,
+                 # loss_type='hccdice',
+                 # loss_type='dice',
+                 # loss_type='jaccard',
+                 # loss_type='hccdie',
+                 # loss_type='tversky',
+                 # loss_type='focal'
+                 # loss_type='dice+jaccard'
+                 # loss_type='hccmse'
+                 loss_type='dice+jaccard+focal',
+                 # loss_type='dice+jaccard+tversky+focal'
+                 ):
+
         super().__init__()
 
         self.model = get_model(encoder_name, weights, pretrained_type, img_size)
@@ -159,13 +241,10 @@ class SegModule(BaseModule):
         }
 
     def preprocess_batch_imgs(self, imgs):
-
-        # batch_imgs preprocessing for super images
         super_images, videos = imgs
         return super_images
 
     def postprocess_batch_preds_and_targets(self, preds, targets):
-
         out_preds = []
         out_labels = []
 
@@ -188,36 +267,11 @@ class SegModule(BaseModule):
 
             out_preds.extend([pred_trace[None, :]])
             out_labels.extend([trace_mask])
-        # origin
+
         out_preds = torch.cat(out_preds)[:, :, :112, :112].contiguous()
         out_labels = torch.cat(out_labels)[:, :, :112, :112].contiguous()
 
         return out_preds, out_labels
-
-    @staticmethod
-    def __get_pos_frame(tensor_pos_frame, index):
-
-        """
-        Convert from
-        [
-            [
-                tensor([224,   0, 112, 224, 112, 112, 224, 336,   0, 112,   0, 224, 336,   0,112, 112], device='cuda:0'),
-                tensor([560,   0,   0, 336, 224,   0, 336,   0, 224, 336, 336, 560,   0, 560, 336, 224], device='cuda:0')
-            ],
-            [
-                tensor([336, 112, 224, 336, 224, 224, 336, 448, 112, 224, 112, 336, 448, 112, 224, 224], device='cuda:0'),
-                tensor([672, 112, 112, 448, 336, 112, 448, 112, 336, 448, 448, 672, 112, 672, 448, 336], device='cuda:0')
-            ]
-        ]
-
-        To (for index=0) --> [[224, 560], [336, 672]]
-        """
-
-        tl = tensor_pos_frame[0]
-        br = tensor_pos_frame[1]
-
-        return [[tl[0][index], tl[1][index]],
-                [br[0][index], br[1][index]]]
 
     def configure_optimizers(self):
         # AdamW
@@ -225,6 +279,7 @@ class SegModule(BaseModule):
             self.parameters(), lr=4e-4,
             weight_decay=1e-5, amsgrad=True,
         )
+
 
         # SGD
         # optimizer = torch.optim.SGD(
@@ -276,3 +331,4 @@ class SegModule(BaseModule):
         # )
 
         return [optimizer], [scheduler]
+

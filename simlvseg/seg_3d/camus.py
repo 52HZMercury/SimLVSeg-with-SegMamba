@@ -330,7 +330,41 @@ class CAMUSDatasetTest(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.patients)
+    def pad_to_shape(self, arr):
+        """
+        将输入数组 arr 的图像数据从右边和底边填充为 128。
 
+        参数:
+        arr (numpy.ndarray): 输入数组，形状为 (F, H, W, C ) 或 (F, H, W)。
+
+        返回:
+        numpy.ndarray: 填充后的数组，形状为 (F, 128, 128, C) 或 (F, 128, 128)。
+        """
+        if arr.ndim == 4:
+            F, H, W, C= arr.shape
+        elif arr.ndim == 3:
+            F, H, W = arr.shape
+            C = 1
+        else:
+            raise ValueError("输入数组的维度必须为 3 或 4")
+
+        # 计算需要填充的大小
+        pad_height = 128 - H
+        pad_width = 128 - W
+
+        if pad_height < 0 or pad_width < 0:
+            raise ValueError("输入数组的尺寸不能大于 128x128")
+
+        # 创建填充配置
+        if arr.ndim == 4:
+            pad_widths = ((0, 0), (0, pad_height), (0, pad_width), (0, 0))
+        elif arr.ndim == 3:
+            pad_widths = ((0, 0), (0, pad_height), (0, pad_width))
+
+        # 应用填充
+        padded_arr = np.pad(arr, pad_width=pad_widths, mode='constant', constant_values=0)
+
+        return padded_arr
     def __getitem__(self, idx):
         patient = self.patients[idx]
 
@@ -345,6 +379,10 @@ class CAMUSDatasetTest(torch.utils.data.Dataset):
 
         a4c_seq = (a4c_seq - self.mean) / self.std
 
+        # 使用填充函数填充到128
+        a4c_seq = self.pad_to_shape(a4c_seq)
+        a4c_gt = self.pad_to_shape(a4c_gt)
+
         if self.n_frames > a4c_seq.shape[0]:
             # TYPE 1: MIRRORING
             # a4c_seq = expand_and_mirror(a4c_seq, self.n_frames)
@@ -353,12 +391,12 @@ class CAMUSDatasetTest(torch.utils.data.Dataset):
             # a4c_gt = tmp.copy()
 
             # TYPE 2: PADDING TO ZERO
-            tmp = np.zeros((self.n_frames, 112, 112, 3)).astype(a4c_seq.dtype)
-            tmp[:a4c_seq.shape[0]] = a4c_seq
-            a4c_seq = tmp.copy()
-            tmp = np.zeros_like(a4c_seq)[...,0]
-            tmp[:a4c_gt.shape[0]] = a4c_gt
-            a4c_gt = tmp.copy()
+            # tmp = np.zeros((self.n_frames, 112, 112, 3)).astype(a4c_seq.dtype)
+            # tmp[:a4c_seq.shape[0]] = a4c_seq
+            # a4c_seq = tmp.copy()
+            # tmp = np.zeros_like(a4c_seq)[...,0]
+            # tmp[:a4c_gt.shape[0]] = a4c_gt
+            # a4c_gt = tmp.copy()
 
             # TYPE 3:
             # a4c_seq = pad_array(a4c_seq, self.n_frames)
@@ -372,15 +410,35 @@ class CAMUSDatasetTest(torch.utils.data.Dataset):
             # a4c_seq = pad_array_with_origin_images_seq(a4c_seq, self.n_frames)
             # a4c_gt = pad_array_with_origin_images_gt(a4c_gt, self.n_frames)
 
+            # TYPE 6:
+            valid_frame_num = np.sum(a4c_seq.sum(1).sum(-1).sum(-1) != 0)
+            a4c_seq = valid_crop_resize(a4c_seq, valid_frame_num, [1], self.n_frames)
+            a4c_gt = a4c_gt[:, :, :, None]
+            a4c_gt = valid_crop_resize(a4c_gt, valid_frame_num, [1], self.n_frames)[..., 0]  # [...，0]中..表示保留了前面的所有维度，0表示选择最后一维的第一个元荼
+
+        else:
+            valid_frame_num = self.n_frames
 
         assert a4c_seq.shape[0] == self.n_frames
 
-        # (N, H, W, C) --> (C, H, W, N)
+        # (F, H, W, C) --> (C, H, W, F)
         a4c_seq = a4c_seq.transpose((3, 1, 2, 0))
-        a4c_gt = a4c_gt.transpose((1,2,0))
+        a4c_gt = a4c_gt.transpose((1, 2, 0))
 
         a4c_seq = np.float32(a4c_seq)
-        a4c_gt  = np.float32(a4c_gt)
+        a4c_gt = np.float32(a4c_gt)
+
+        # 获取ED和ES的标注
+        # a4c_gt = {
+        #     'label_index': [0, int(valid_frame_num - 1)],
+        #     'video_gt': a4c_gt,
+        # }
+
+        # all
+        a4c_gt = {
+            'label_index': [0, self.n_frames - 1],
+            'video_gt': a4c_gt,
+        }
 
         # 实际视频数据 标注数据 病人序号
         return a4c_seq, a4c_gt, patient

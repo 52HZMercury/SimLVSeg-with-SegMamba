@@ -28,7 +28,7 @@ class Echo(torchvision.datasets.VisionDataset):
         split="test",
         target_type="EF",
         external_test_location=None,
-        frame_shape = (112,112)
+        frame_shape = (128,128)
         ):
 
         super().__init__(root)
@@ -184,26 +184,26 @@ class TestData():
                 dataset, batch_size=1, num_workers=num_workers,
                 shuffle=False, drop_last=False,
             )
-            
+
             large_inter, large_union, small_inter, small_union = self.run_epoch(dataloader)
 
             overall_dice = 2 * (large_inter + small_inter) / (large_union + large_inter + small_union + small_inter)
             large_dice = 2 * large_inter / (large_union + large_inter)
             small_dice = 2 * small_inter / (small_union + small_inter)
-            
+
             with open(os.path.join(output_dir, "{}_dice.csv".format(split)), "w") as g:
                 g.write("Filename, Overall, Large, Small\n")
                 for (filename, overall, large, small) in zip(dataset.fnames, overall_dice, large_dice, small_dice):
                     g.write("{},{},{},{}\n".format(filename, overall, large, small))
-            
+
             with open(os.path.join(output_dir, "log.csv"), "w") as f:
                 f.write("{} dice (overall): {:.4f} ({:.4f} - {:.4f})\n".format(split, *self.bootstrap(np.concatenate((large_inter, small_inter)), np.concatenate((large_union, small_union)), self.dice_similarity_coefficient)))
                 f.write("{} dice (large):   {:.4f} ({:.4f} - {:.4f})\n".format(split, *self.bootstrap(large_inter, large_union, self.dice_similarity_coefficient)))
                 f.write("{} dice (small):   {:.4f} ({:.4f} - {:.4f})\n".format(split, *self.bootstrap(small_inter, small_union, self.dice_similarity_coefficient)))
                 f.flush()
-    
+
     def run_epoch(self, dataloader):
-        
+
         total = 0.
         n = 0
 
@@ -233,7 +233,7 @@ class TestData():
             pos_pix += (small_trace == 1).sum(0).to("cpu").detach().numpy()
             neg_pix += (large_trace == 0).sum(0).to("cpu").detach().numpy()
             neg_pix += (small_trace == 0).sum(0).to("cpu").detach().numpy()
-            
+
             y_large = large_pred
 
             # Compute pixel intersection and union between human and computer segmentations

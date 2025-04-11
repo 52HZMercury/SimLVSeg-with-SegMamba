@@ -270,7 +270,8 @@ class MambaLayer(nn.Module):
         i_all = torch.arange(total_elements, device=device)
         frame_size = h * w
         i_in_frame = i_all % frame_size
-        f_idx = i_all // frame_size
+        # f_idx = i_all // frame_size
+        f_idx = torch.div(i_all, frame_size, rounding_mode='trunc')
 
         x_y = coord_map[i_in_frame]
         x_idx, y_idx = x_y[:, 0], x_y[:, 1]
@@ -289,7 +290,8 @@ class MambaLayer(nn.Module):
         reshapeTensor = torch.zeros((B, C, h, w, d), dtype=flatTensor.dtype, device=device)
         i_all = torch.arange(total_elements, device=device)
         frame_size = h * w
-        f_idx = i_all // frame_size
+        # f_idx = i_all // frame_size
+        f_idx = torch.div(i_all, frame_size, rounding_mode='trunc')
         i_in_frame = i_all % frame_size
 
         coord_map = mooreMap.to(device)
@@ -308,20 +310,20 @@ class MambaLayer(nn.Module):
         img_dims = x.shape[2:]
 
         # origin 后三位展平为一维进行扫描
-        # x_flat = x.reshape(B, C, n_tokens).transpose(-1, -2)
-        # x_norm = self.norm(x_flat)
-        # x_mamba = self.mamba(x_norm)
-        # # 恢复为原来的形状
-        # out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
-
-        # MRscan 后三位展平为一维进行扫描
-        frameSize = x.shape[-2]
-        mooreMap = self.mooreMaps[frameSize]
-        x_MRflat = self.mooreFlat(x, mooreMap).transpose(-1, -2)
-        x_norm = self.norm(x_MRflat)
+        x_flat = x.reshape(B, C, n_tokens).transpose(-1, -2)
+        x_norm = self.norm(x_flat)
         x_mamba = self.mamba(x_norm)
         # 恢复为原来的形状
-        out = self.mooreReshape(x_mamba.transpose(-1, -2), mooreMap)
+        out = x_mamba.transpose(-1, -2).reshape(B, C, *img_dims)
+
+        # MRscan 后三位展平为一维进行扫描
+        # frameSize = x.shape[-2]
+        # mooreMap = self.mooreMaps[frameSize]
+        # x_MRflat = self.mooreFlat(x, mooreMap).transpose(-1, -2)
+        # x_norm = self.norm(x_MRflat)
+        # x_mamba = self.mamba(x_norm)
+        # # 恢复为原来的形状
+        # out = self.mooreReshape(x_mamba.transpose(-1, -2), mooreMap)
 
         out = out + x_skip
 

@@ -89,7 +89,7 @@ class DataModule(pl.LightningDataModule):
         val_patient_names = read_patient_names('scripts/camus/database_split/camus_val_filenames.txt')
         test_patient_names = read_patient_names('scripts/camus/database_split/camus_test_filenames.txt')
 
-        # CAMUS划分
+        # CAMUS官方划分
         # train_patient_names = read_patient_names('scripts/camus/database_split/subgroup_training.txt')
         # val_patient_names = read_patient_names('scripts/camus/database_split/subgroup_validation.txt')
         # test_patient_names = read_patient_names('scripts/camus/database_split/subgroup_testing.txt')
@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
     # 32位精度
     # 多卡并行变为ddp后，需要调高lr，倍数为对应显卡张数或根号倍 devices=[0, 1], strategy="ddp", sync_batchnorm=True,
-    trainer = pl.Trainer(accelerator="gpu", devices=[2], max_epochs=args.epochs,
+    trainer = pl.Trainer(accelerator="gpu", devices=[3], max_epochs=args.epochs,
                         val_check_interval=args.val_check_interval,
                         log_every_n_steps=10,
                         callbacks=[checkpoint_callback])

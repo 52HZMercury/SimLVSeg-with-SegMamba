@@ -167,10 +167,18 @@ class Seg3DDatasetTest(Seg3DDataset):
         target['trace_frame'] = video[:, self.frames[key][_t], :, :].transpose((1, 2, 0))
         t = self.trace[key][self.frames[key][_t]]
         
-        x1, y1, x2, y2 = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
-        x = np.concatenate((x1[1:], np.flip(x2[1:])))
-        y = np.concatenate((y1[1:], np.flip(y2[1:])))
-        
+        # x1, y1, x2, y2 = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
+        # x = np.concatenate((x1[1:], np.flip(x2[1:])))
+        # y = np.concatenate((y1[1:], np.flip(y2[1:])))
+
+        if t.shape[1] == 4:
+            x1, y1, x2, y2 = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
+            x = np.concatenate((x1[1:], np.flip(x2[1:])))
+            y = np.concatenate((y1[1:], np.flip(y2[1:])))
+        else:
+            assert t.shape[1] == 2
+            x, y = t[:, 0], t[:, 1]
+
         r, c = skimage.draw.polygon(np.rint(y).astype(np.int), np.rint(x).astype(np.int), (video.shape[2], video.shape[3]))
         mask = np.zeros((video.shape[2], video.shape[3]), np.float32)
         mask[r, c] = 1

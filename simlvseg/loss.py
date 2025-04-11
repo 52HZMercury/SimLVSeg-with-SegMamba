@@ -16,7 +16,7 @@ class SegLoss(nn.Module):
 
         for l in loss_type:
             if l not in ['bce', 'sbce', 'dice', 'mse', 'hccmse', 'hccdice', 'focal',
-                         'tversky', 'jaccard', 'dice+Jaccard', 'onlyhcc']:
+                         'tversky', 'jaccard', 'dice+jaccard', 'onlyhcc','dice+jaccard+focal','dice+jaccard+tversky+focal']:
                 raise ValueError(f'Loss type {l} is not recognized ...')
 
         self.bce_loss = smp.losses.SoftBCEWithLogitsLoss()
@@ -83,7 +83,7 @@ class SegLoss(nn.Module):
             loss += self.jaccard_loss(preds, labels)
 
         if 'dice+jaccard' in self.loss_type:
-            loss += 0.2 * self.dice_loss(preds, labels) + 0.8 * self.jaccard_loss(preds, labels)
+            loss += 0.8 * self.dice_loss(preds, labels) + 0.2 * self.jaccard_loss(preds, labels)
 
         if 'hccmse' in self.loss_type:
             loss += (self.mse_loss(preds, labels) + 0.1 * self.mse_loss(preds, labels))
@@ -96,9 +96,12 @@ class SegLoss(nn.Module):
             # loss += self.pearson(preds, labels)
 
         if 'dice+jaccard+focal' in self.loss_type:
-            # loss += 0.4 * self.dice_loss(preds, labels) + 0.3 * self.jaccard_loss(preds, labels) + 0.3 * self.focal_loss(preds, labels)
-            loss += 0.6 * self.dice_loss(preds, labels) + 0.2 * self.jaccard_loss(preds, labels) + 0.2 * self.focal_loss(preds, labels)
+            loss += 0.4 * self.dice_loss(preds, labels) + 0.3 * self.jaccard_loss(preds, labels) + 0.3 * self.focal_loss(preds, labels)
+            # loss += 0.6 * self.dice_loss(preds, labels) + 0.2 * self.jaccard_loss(preds, labels) + 0.2 * self.focal_loss(preds, labels)
             # loss += 0.2 * self.dice_loss(preds, labels) + 0.6 * self.jaccard_loss(preds, labels) + 0.2 * self.focal_loss(preds, labels)
             # loss += 0.2 * self.dice_loss(preds, labels) + 0.2 * self.jaccard_loss(preds, labels) + 0.6 * self.focal_loss(preds, labels)
+
+        if 'dice+jaccard+tversky+focal' in self.loss_type:
+            loss += 0.3 * self.dice_loss(preds, labels) + 0.1 * self.jaccard_loss(preds, labels) + 0.3 * self.tversky_loss(preds, labels)+ 0.3 * self.focal_loss(preds, labels)
 
         return loss

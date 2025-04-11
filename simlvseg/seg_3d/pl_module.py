@@ -62,12 +62,11 @@ class Seg3DModule(SegModule):
 
 
     # 验证用提取全部数据函数
-    def postprocess_batch_preds_and_targets_camus_val(self, preds, targets):
-
+    def postprocess_batch_preds_and_targets_camus_test(self, preds, targets):
 
         # 全监督
-        out_preds = preds
-        out_labels = targets['video_gt'][:, None, :]  # None表示在第0维之后插入一个维度
+        out_preds = preds[0]
+        out_labels = targets['video_gt'][:, None, :][0]  # None表示在第0维之后插入一个维度
 
         return out_preds, out_labels
 

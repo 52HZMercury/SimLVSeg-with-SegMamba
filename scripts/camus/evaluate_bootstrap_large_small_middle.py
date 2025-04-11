@@ -235,4 +235,4 @@ if __name__=='__main__':
 
     test_model = TestData()
 
-    test_model.run_test(data_dir=args.data_dir, pred_dir=args.prediction_dir, output_dir=args.output_dir, list_quality=args.quality)
+    test_model.run_test(data_dir=args.data_dir, pred_dir=args.prediction_dir, output_dir=args.output_dir, )

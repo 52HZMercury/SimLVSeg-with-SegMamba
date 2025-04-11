@@ -1,5 +1,7 @@
 import os
 import sys
+
+
 sys.path.append(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir)
 )
@@ -48,6 +50,10 @@ def parse_args():
 
     args = parser.parse_args()
     return args
+def read_patient_names(file_path):
+    with open(file_path, 'r') as file:
+        patient_names = [line.strip() for line in file.readlines()]
+    return patient_names
 
 if __name__ == '__main__':
     args = parse_args()
@@ -62,17 +68,28 @@ if __name__ == '__main__':
         args.std,
     )
 
+    # 读取文件内容
+
+    # SAM划分
+    test_patient_names = read_patient_names('scripts/camus/database_split/camus_test_filenames.txt')
+
+    # CAMUS划分
+    # train_patient_names = read_patient_names('scripts/camus/database_split/subgroup_training.txt')
+    # val_patient_names = read_patient_names('scripts/camus/database_split/subgroup_validation.txt')
+    # test_patient_names = read_patient_names('scripts/camus/database_split/subgroup_testing.txt')
+
+    print('Configuring test dataset ...')
+    # 测试数据集
     test_dataset = CAMUSDatasetTest(
         args.data_path,
         args.frames,
         args.mean,
         args.std,
+        test_patient_names
     )
 
-    test_dataloader = DataLoader(
-        test_dataset, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.num_workers, drop_last=False,
-    )
+    test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False,
+                          num_workers=args.num_workers, drop_last=False)
 
     checkpoint = torch.load(args.checkpoint, map_location='cpu')
     model = Seg3DModule(args.encoder, None, None)
@@ -95,10 +112,12 @@ if __name__ == '__main__':
             preds = np.where(preds >= 0.5, 255, 0).astype(np.uint8)
             
             list_patient.extend(data[2])
+            # list_preds.extend([pred for pred in preds])
+            # list_gt.extend(data[1].numpy())
+            list_gt.extend(data[1]['video_gt'].numpy())
             list_preds.extend([pred for pred in preds])
-            list_gt.extend(data[1].numpy())
 
-    for i in tqdm(range(len(list_preds))):
+for i in tqdm(range(len(list_preds))):
         patient = list_patient[i]
         
         

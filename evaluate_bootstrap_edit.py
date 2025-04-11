@@ -17,6 +17,8 @@ import skimage.draw  # scikit-image库的一部分，用于在图像上绘制形
 import torchvision  # 用于计算机视觉工具和数据集的库
 import cv2  # OpenCV库，用于计算机视觉任务
 import pandas  # 用于数据处理的库
+from medpy.metric.binary import assd as medpy_assd
+from medpy.metric.binary import hd95 as medpy_hd95
 
 # 导入自定义工具包
 from simlvseg.utils import defaultdict_of_lists
@@ -31,7 +33,7 @@ class Echo(torchvision.datasets.VisionDataset):
             split="test",
             target_type="EF",
             external_test_location=None,
-            frame_shape=(112, 112)
+            frame_shape=(128, 128)
     ):
         super().__init__(root)  # 调用父类的初始化方法
 
@@ -74,17 +76,26 @@ class Echo(torchvision.datasets.VisionDataset):
             # 读取VolumeTracings.csv文件
             with open(os.path.join(self.root, "VolumeTracings.csv")) as f:
                 header = f.readline().strip().split(",")  # 读取并解析文件头
-                assert header == ["FileName", "X1", "Y1", "X2", "Y2", "Frame"]  # 确保文件头与预期一致
-                for line in f:  # 遍历每一行数据
-                    filename, x1, y1, x2, y2, frame = line.strip().split(',')
-                    x1 = float(x1)  # 将坐标转换为浮动类型
-                    y1 = float(y1)
-                    x2 = float(x2)
-                    y2 = float(y2)
-                    frame = int(frame)  # 将帧号转换为整数
-                    if frame not in self.trace[filename]:  # 如果该帧不存在于追踪字典中
-                        self.frames[filename].append(frame)  # 添加该帧到帧列表
-                    self.trace[filename][frame].append((x1, y1, x2, y2))  # 在追踪字典中添加坐标
+                if(header == ["FileName", "X1", "Y1", "X2", "Y2", "Frame"]):  # 确保文件头与预期一致
+                    for line in f:  # 遍历每一行数据
+                        filename, x1, y1, x2, y2, frame = line.strip().split(',')
+                        x1 = float(x1)  # 将坐标转换为浮动类型
+                        y1 = float(y1)
+                        x2 = float(x2)
+                        y2 = float(y2)
+                        frame = int(frame)  # 将帧号转换为整数
+                        if frame not in self.trace[filename]:  # 如果该帧不存在于追踪字典中
+                            self.frames[filename].append(frame)  # 添加该帧到帧列表
+                        self.trace[filename][frame].append((x1, y1, x2, y2))  # 在追踪字典中添加坐标
+                if (header == ["FileName", "X", "Y", "Frame"]):  # 确保文件头与预期一致
+                    for line in f:  # 遍历每一行数据
+                        filename, x, y, frame = line.strip().split(',')
+                        x = float(x)  # 将坐标转换为浮动类型
+                        y = float(y)
+                        frame = int(frame)  # 将帧号转换为整数
+                        if frame not in self.trace[filename]:  # 如果该帧不存在于追踪字典中
+                            self.frames[filename].append(frame)  # 添加该帧到帧列表
+                        self.trace[filename][frame].append((x, y))  # 在追踪字典中添加坐标
 
             # 将追踪数据从列表转换为NumPy数组
             for filename in self.frames:
@@ -121,9 +132,19 @@ class Echo(torchvision.datasets.VisionDataset):
                     t = self.trace[key][self.frames[key][-1]]
                 else:
                     t = self.trace[key][self.frames[key][0]]
-                x1, y1, x2, y2 = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
-                x = np.concatenate((x1[1:], np.flip(x2[1:])))
-                y = np.concatenate((y1[1:], np.flip(y2[1:])))
+
+                # x1, y1, x2, y2 = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
+                # x = np.concatenate((x1[1:], np.flip(x2[1:])))
+                # y = np.concatenate((y1[1:], np.flip(y2[1:])))
+
+                if t.shape[1] == 4:
+                    x1, y1, x2, y2 = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
+                    x = np.concatenate((x1[1:], np.flip(x2[1:])))
+                    y = np.concatenate((y1[1:], np.flip(y2[1:])))
+                else:
+                    assert t.shape[1] == 2
+                    x, y = t[:, 0], t[:, 1]
+
                 r, c = skimage.draw.polygon(np.rint(y).astype(int), np.rint(x).astype(int), self.frame_shape)
                 mask = np.zeros(self.frame_shape, np.float32)
                 mask[r, c] = 1  # 创建分割掩膜
@@ -165,12 +186,15 @@ class Echo(torchvision.datasets.VisionDataset):
             img = cv2.imread(filename, cv2.IMREAD_GRAYSCALE)  # 读取预测的图像
             return img.astype(np.float32) / 255.0  # 归一化处理
 
+
 # 下面是TestData类的定义，负责执行测试任务
 class TestData():
     # 计算均值和标准差
     def mean_and_std(self, values):
-        mean = np.mean(values)  # 计算均值
-        std = np.std(values)    # 计算标准差
+
+        mean = np.mean(values)  # 均值的期望
+        std = np.std(values)  # 均值的标准差（即标准误差）
+
         return mean, std
 
     # 执行测试
@@ -184,34 +208,51 @@ class TestData():
                                                      shuffle=False, drop_last=False)
 
             # 执行一轮评估
-            asd, sen, large_inter, large_union, small_inter, small_union = self.run_epoch(dataloader)
+            assd, hd95, sen, large_inter, large_union, small_inter, small_union = self.run_epoch(dataloader)
 
             # 计算Dice系数
-            overall_dice = 2 * (large_inter + small_inter) / (large_union + large_inter + small_union + small_inter)
-            large_dice = 2 * large_inter / (large_union + large_inter)
-            small_dice = 2 * small_inter / (small_union + small_inter)
+            overall_dice = 2 * (large_inter + small_inter) / (large_union + large_inter + small_union + small_inter + 1e-7)
+            large_dice = 2 * large_inter / (large_union + large_inter + 1e-7)
+            small_dice = 2 * small_inter / (small_union + small_inter + 1e-7)
+
+            # 计算IOU
+            overall_iou = (large_inter + small_inter) / (large_union + small_union + 1e-7)
+            large_iou = large_inter / (large_union + 1e-7)
+            small_iou = small_inter / (small_union + 1e-7)
 
             # 计算均值和标准差
-            asd_mean, asd_std = self.mean_and_std(asd)
+            hd95_mean, hd95_std = self.mean_and_std(hd95)
+            assd_mean, assd_std = self.mean_and_std(assd)
             sen_mean, sen_std = self.mean_and_std(sen)
             overall_dice_mean, overall_dice_std = self.mean_and_std(overall_dice)
             large_dice_mean, large_dice_std = self.mean_and_std(large_dice)
             small_dice_mean, small_dice_std = self.mean_and_std(small_dice)
+            overall_iou_mean, overall_iou_std = self.mean_and_std(overall_iou)
+            large_iou_mean, large_iou_std = self.mean_and_std(large_iou)
+            small_iou_mean, small_iou_std = self.mean_and_std(small_iou)
 
             # 将结果保存到CSV文件中
-            with open(os.path.join(output_dir, "{}_asd.csv".format(split)), "w") as f:
-                f.write("Filename, ASD\n")
-                for filename, asd_value in zip(dataset.fnames, asd):
-                    f.write("{}, {}\n".format(filename, asd_value))
-                f.write("Mean ASD, {}\n".format(asd_mean))
-                f.write("Standard Deviation ASD, {}\n".format(asd_std))
+            # 修改输出文件
+            with open(os.path.join(output_dir, "{}_assd.csv".format(split)), "w") as f:
+                f.write("Filename, ASSD\n")
+                for filename, assd_value in zip(dataset.fnames, assd):
+                    f.write("{}, {}\n".format(filename, assd_value))
+                f.write("Mean ASSD, {}\n".format(assd_mean))
+                f.write("Standard Deviation ASSD, {}\n".format(assd_std))
+
+            with open(os.path.join(output_dir, "{}_hd95.csv".format(split)), "w") as f:
+                f.write("Filename, HD95\n")
+                for filename, hd95_value in zip(dataset.fnames, hd95):
+                    f.write("{}, {}\n".format(filename, hd95_value))
+                f.write("Mean HD95, {}\n".format(hd95_mean))
+                f.write("Standard Deviation HD95, {}\n".format(hd95_std))
 
             with open(os.path.join(output_dir, "{}_sen.csv".format(split)), "w") as f:
-                f.write("Filename, SEN\n")
-                for filename, sen_value in zip(dataset.fnames, sen):
-                    f.write("{}, {}\n".format(filename, sen_value))
-                f.write("Mean SEN, {}\n".format(sen_mean))
-                f.write("Standard Deviation SEN, {}\n".format(sen_std))
+                    f.write("Filename, SEN\n")
+                    for filename, sen_value in zip(dataset.fnames, sen):
+                        f.write("{}, {}\n".format(filename, sen_value))
+                    f.write("Mean SEN, {}\n".format(sen_mean))
+                    f.write("Standard Deviation SEN, {}\n".format(sen_std))
 
             with open(os.path.join(output_dir, "{}_dice.csv".format(split)), "w") as g:
                 g.write("Filename, Overall, Large, Small\n")
@@ -224,18 +265,32 @@ class TestData():
                 g.write("Mean Small Dice, {}\n".format(small_dice_mean))
                 g.write("Standard Deviation Small Dice, {}\n".format(small_dice_std))
 
-            # 记录log日志
-            with open(os.path.join(output_dir, "log.csv"), "w") as f:
-                f.write("{} ASD (mean ± std): {:.4f} ± {:.4f}\n".format(split, asd_mean, asd_std))
-                f.write("{} SEN (mean ± std): {:.4f} ± {:.4f}\n".format(split, sen_mean, sen_std))
-                f.write("{} Overall Dice (mean ± std): {:.4f} ± {:.4f}\n".format(split, overall_dice_mean, overall_dice_std))
-                f.write("{} Large Dice (mean ± std): {:.4f} ± {:.4f}\n".format(split, large_dice_mean, large_dice_std))
-                f.write("{} Small Dice (mean ± std): {:.4f} ± {:.4f}\n".format(split, small_dice_mean, small_dice_std))
-                f.flush()
+                # 新增IOU结果保存
+                with open(os.path.join(output_dir, "{}_iou.csv".format(split)), "w") as g:
+                    g.write("Filename, Overall, Large, Small\n")
+                    for (filename, overall, large, small) in zip(dataset.fnames, overall_iou, large_iou, small_iou):
+                        g.write("{},{},{},{}\n".format(filename, overall, large, small))
+                    g.write("Mean Overall IOU, {}\n".format(overall_iou_mean))
+                    g.write("Standard Deviation Overall IOU, {}\n".format(overall_iou_std))
+                    g.write("Mean Large IOU, {}\n".format(large_iou_mean))
+                    g.write("Standard Deviation Large IOU, {}\n".format(large_iou_std))
+                    g.write("Mean Small IOU, {}\n".format(small_iou_mean))
+                    g.write("Standard Deviation Small IOU, {}\n".format(small_iou_std))
+
+                # 记录log日志
+                with open(os.path.join(output_dir, "log.csv"), "w") as f:
+                    # f.write("{} Overall Dice (mean - std): {:.4f} - {:.4f}\n".format(split, overall_dice_mean, overall_dice_std))
+                    # f.write("{} Overall IOU (mean - std): {:.4f} - {:.4f}\n".format(split, overall_iou_mean, overall_iou_std))
+                    f.write("{} ASSD (mean - std): {:.4f} - {:.4f}\n".format(split, assd_mean, assd_std))
+                    f.write("{} SEN (mean - std): {:.4f} - {:.4f}\n".format(split, sen_mean, sen_std))
+                    f.write("{} HD95 (mean - std): {:.4f} - {:.4f}\n".format(split, hd95_mean, hd95_std))
+
+                    f.flush()
 
     # 执行一轮数据加载
     def run_epoch(self, dataloader):
-        asd_list = []  # 用于存储ASD值的列表
+        assd_list = []  # 改为ASSD
+        hd95_list = []  # 新增HD95
         sen_list = []  # 用于存储敏感度值的列表
 
         large_inter = 0  # 初始化大型区域交集
@@ -249,10 +304,14 @@ class TestData():
 
         # 遍历数据加载器
         for large_trace, small_trace, large_pred, small_pred in tqdm.tqdm(dataloader):
-            asd = self.compute_asd(large_trace, large_pred)  # 计算ASD
-            asd_list.append(asd)  # 保存ASD值
-            sen = self.compute_sen(large_trace, large_pred)  # 计算敏感度
-            sen_list.append(sen)  # 保存敏感度值
+            # 改为计算ASSD和HD95
+            assd = self.compute_assd(large_trace, large_pred)
+            hd95 = self.compute_hd95(large_trace, large_pred)
+            sen = self.compute_sen(large_trace, large_pred)
+
+            assd_list.append(assd)
+            hd95_list.append(hd95)
+            sen_list.append(sen)
 
             # 计算交集和并集的大小
             large_inter += np.logical_and(large_pred.detach().cpu().numpy() > 0., large_trace.detach().cpu().numpy() > 0.).sum()
@@ -266,7 +325,7 @@ class TestData():
             small_inter_list.extend(np.logical_and(small_pred.detach().cpu().numpy() > 0., small_trace.detach().cpu().numpy() > 0.).sum((1, 2)))
             small_union_list.extend(np.logical_or(small_pred.detach().cpu().numpy() > 0., small_trace.detach().cpu().numpy() > 0.).sum((1, 2)))
 
-        return asd_list, sen_list, np.array(large_inter_list), np.array(large_union_list), np.array(small_inter_list), np.array(small_union_list)
+        return assd_list, hd95_list, sen_list, np.array(large_inter_list), np.array(large_union_list), np.array(small_inter_list), np.array(small_union_list)
 
 
     # 计算ASD (平均表面距离)
@@ -308,6 +367,28 @@ class TestData():
         if tp + fn == 0:  # 避免除以零
             return 1.0
         return tp / (tp + fn)  # 返回敏感度值
+
+    def compute_assd(self, true_mask, pred_mask):
+        """
+            Calculate the Average Symmetric Surface Distance (ASSD) between the predicted and target segmentation
+            using medpy's assd.
+            """
+        pred = pred_mask > 0.5  # 假设0.5是阈值
+        target = true_mask > 0.5
+
+        # 使用medpy的ASSD计算
+        return medpy_assd(target.cpu().numpy(), pred.cpu().numpy(), voxelspacing=[1.0, 1.0, 1.0])
+
+    def compute_hd95(self, true_mask, pred_mask):
+        """
+            Calculate the Average Symmetric Surface Distance (ASSD) between the predicted and target segmentation
+            using medpy's assd.
+            """
+        pred = pred_mask > 0.5  # 假设0.5是阈值
+        target = true_mask > 0.5
+
+        # 使用medpy的hd95计算
+        return medpy_hd95(target.cpu().numpy(), pred.cpu().numpy(), voxelspacing=[1.0, 1.0, 1.0])
 
 
 # 主程序入口
