@@ -282,8 +282,9 @@ class TestData():
                     # f.write("{} Overall Dice (mean - std): {:.4f} - {:.4f}\n".format(split, overall_dice_mean, overall_dice_std))
                     # f.write("{} Overall IOU (mean - std): {:.4f} - {:.4f}\n".format(split, overall_iou_mean, overall_iou_std))
                     f.write("{} ASSD (mean - std): {:.4f} - {:.4f}\n".format(split, assd_mean, assd_std))
-                    f.write("{} SEN (mean - std): {:.4f} - {:.4f}\n".format(split, sen_mean, sen_std))
                     f.write("{} HD95 (mean - std): {:.4f} - {:.4f}\n".format(split, hd95_mean, hd95_std))
+                    f.write("{} SEN (mean - std): {:.4f} - {:.4f}\n".format(split, sen_mean, sen_std))
+
 
                     f.flush()
 
@@ -305,9 +306,17 @@ class TestData():
         # 遍历数据加载器
         for large_trace, small_trace, large_pred, small_pred in tqdm.tqdm(dataloader):
             # 改为计算ASSD和HD95
-            assd = self.compute_assd(large_trace, large_pred)
-            hd95 = self.compute_hd95(large_trace, large_pred)
-            sen = self.compute_sen(large_trace, large_pred)
+            assd_large = self.compute_assd(large_trace, large_pred)
+            assd_small = self.compute_assd(small_trace, small_pred)
+            hd95_large = self.compute_hd95(large_trace, large_pred)
+            hd95_small = self.compute_hd95(small_trace, small_pred)
+            sen_large = self.compute_sen(large_trace, large_pred)
+            sen_small = self.compute_sen(small_trace, small_pred)
+
+            assd = (assd_large + assd_small) / 2
+            hd95 = (hd95_large + hd95_small) / 2
+            sen = (sen_large + sen_small) / 2
+
 
             assd_list.append(assd)
             hd95_list.append(hd95)
@@ -373,22 +382,22 @@ class TestData():
             Calculate the Average Symmetric Surface Distance (ASSD) between the predicted and target segmentation
             using medpy's assd.
             """
-        pred = pred_mask > 0.5  # 假设0.5是阈值
-        target = true_mask > 0.5
+        pred = (pred_mask > 0.5).cpu().numpy()
+        target = (true_mask > 0.5).cpu().numpy()
 
-        # 使用medpy的ASSD计算
-        return medpy_assd(target.cpu().numpy(), pred.cpu().numpy(), voxelspacing=[1.0, 1.0, 1.0])
+        # return medpy_assd(pred, target, voxelspacing=[1.0, 1.0, 1.0])
+        return medpy_assd(target.squeeze(), pred.squeeze(), voxelspacing=[1.0, 1.0])
 
     def compute_hd95(self, true_mask, pred_mask):
         """
             Calculate the Average Symmetric Surface Distance (ASSD) between the predicted and target segmentation
             using medpy's assd.
             """
-        pred = pred_mask > 0.5  # 假设0.5是阈值
-        target = true_mask > 0.5
+        pred = (pred_mask > 0.5).cpu().numpy()
+        target = (true_mask > 0.5).cpu().numpy()
 
-        # 使用medpy的hd95计算
-        return medpy_hd95(target.cpu().numpy(), pred.cpu().numpy(), voxelspacing=[1.0, 1.0, 1.0])
+        # return medpy_hd95(pred, target, voxelspacing=[1.0, 1.0, 1.0])
+        return medpy_hd95(target.squeeze(), pred.squeeze(), voxelspacing=[1.0, 1.0])
 
 
 # 主程序入口

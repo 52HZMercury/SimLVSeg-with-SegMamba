@@ -71,7 +71,7 @@ class CAMUSDatasetEval(torch.utils.data.Dataset):
         return padded_arr
 
     def __len__(self):
-        return len(self.patients)
+        return len(self.data)
 
     def __getitem__(self, idx):
         return self.data[idx]
@@ -80,12 +80,14 @@ class CAMUSDatasetEval(torch.utils.data.Dataset):
 class TestData():
     def __init__(self):
         pass
+
     def mean_and_std(self, values):
 
         mean = np.mean(values)  # 均值的期望
         std = np.std(values)  # 均值的标准差（即标准误差）
 
         return mean, std
+
     def read_patient_names(self, file_path):
         with open(file_path, 'r') as file:
             patient_names = [line.strip() for line in file.readlines()]
@@ -113,55 +115,56 @@ class TestData():
             overall_dice = 2 * large_inter / (large_union + large_inter + 1e-7)
             overall_iou = large_inter / (large_union + 1e-7)
 
-
             overall_dice_mean, overall_dice_std = self.mean_and_std(overall_dice)
             overall_iou_mean, overall_iou_std = self.mean_and_std(overall_iou)
             hd95_mean, hd95_std = self.mean_and_std(hd95_list)
             assd_mean, assd_std = self.mean_and_std(assd_list)
             sen_mean, sen_std = self.mean_and_std(sen_list)
 
-
             with open(os.path.join(output_dir, "{}_dice.csv".format(split)), "w") as f:
-                f.write("Patient_Name,Overall\n")
-                for patient_name, overall_dice in zip(dataset.patients, overall_dice):
-                    f.write("{},{}\n".format(patient_name, overall_dice))
+                f.write("F_idx, DICE\n")
+                for f_idx, overall_dice in enumerate(overall_dice):
+                    f.write("{},{}\n".format(f_idx,overall_dice))
                 f.write("Mean overall_dice,{}\n".format(overall_dice_mean))
                 f.write("Standard Deviation overall_dice,{}\n".format(overall_dice_std))
 
             with open(os.path.join(output_dir, "{}_iou.csv".format(split)), "w") as f:
-                f.write("Patient_Name,Overall\n")
-                for patient_name, overall_iou in zip(dataset.patients, overall_iou):
-                    f.write("{},{}\n".format(patient_name, overall_iou))
+                f.write("F_idx, IOU\n")
+                for f_idx, overall_iou in enumerate(overall_iou):
+                    f.write("{},{}\n".format(f_idx,overall_iou))
                 f.write("Mean overall_dice,{}\n".format(overall_iou_mean))
                 f.write("Standard Deviation overall_dice,{}\n".format(overall_iou_std))
 
             with open(os.path.join(output_dir, "{}_assd.csv".format(split)), "w") as f:
-                f.write("Patient_Name,ASSD\n")
-                for patient_name, assd_value in zip(dataset.patients, assd_list):
-                    f.write("{},{}\n".format(patient_name, assd_value))
+                # f.write("Patient_Name,ASSD\n")
+                # for patient_name, assd_value in zip(dataset.patients, assd_list):
+                #     f.write("{},{}\n".format(patient_name, assd_value))
+                f.write("F_idx, ASSD\n")
+                for f_idx, assd_value in enumerate(assd_list):
+                    f.write("{},{}\n".format(f_idx,assd_value))
                 f.write("Mean ASSD,{}\n".format(assd_mean))
                 f.write("Standard Deviation ASSD,{}\n".format(assd_std))
 
             with open(os.path.join(output_dir, "{}_hd95.csv".format(split)), "w") as f:
-                f.write("Patient_Name,HD95\n")
-                for patient_name, hd95_value in zip(dataset.patients, hd95_list):
-                    f.write("{},{}\n".format(patient_name, hd95_value))
+                f.write("F_idx, HD95\n")
+                for f_idx, hd95_value in enumerate(hd95_list):
+                    f.write("{},{}\n".format(f_idx,hd95_value))
                 f.write("Mean HD95,{}\n".format(hd95_mean))
                 f.write("Standard Deviation HD95,{}\n".format(hd95_std))
 
             with open(os.path.join(output_dir, "{}_sen.csv".format(split)), "w") as f:
-                f.write("Patient_Name,SEN\n")
-                for patient_name, sen_value in zip(dataset.patients, sen_list):
-                    f.write("{},{}\n".format(patient_name, sen_value))
+                f.write("F_idx, SEN\n")
+                for f_idx, sen_value in enumerate(sen_list):
+                    f.write("{},{}\n".format(f_idx,sen_value))
                 f.write("Mean SEN,{}\n".format(sen_mean))
                 f.write("Standard Deviation SEN,{}\n".format(sen_std))
 
             with open(os.path.join(output_dir, "log.csv"), "w") as f:
                 # f.write("{} dice: {:.4f} - {:.4f}\n".format(split,overall_dice_mean,overall_dice_std))
                 # f.write("{} iou: {:.4f} - {:.4f}\n".format(split,overall_iou_mean,overall_iou_std))
-                f.write("{} assd: {:.4f} - {:.4f}\n".format(split,assd_mean,assd_std))
-                f.write("{} hd95: {:.4f} - {:.4f}\n".format(split,hd95_mean,hd95_std))
-                f.write("{} sen: {:.4f} - {:.4f}\n".format(split,sen_mean,sen_std))
+                f.write("{} ASSD (mean - std): {:.4f} - {:.4f}\n".format(split, assd_mean, assd_std))
+                f.write("{} HD95 (mean - std): {:.4f} - {:.4f}\n".format(split, hd95_mean, hd95_std))
+                f.write("{} SEN (mean - std): {:.4f} - {:.4f}\n".format(split, sen_mean, sen_std))
                 f.flush()
 
     def run_epoch(self, dataloader):
@@ -196,8 +199,6 @@ class TestData():
 
         return assd_list, hd95_list, sen_list, np.array(large_inter_list), np.array(large_union_list)
 
-
-
     def compute_iou(self, true_mask, pred_mask):
         true_mask = true_mask > 0.5
         pred_mask = pred_mask > 0.5
@@ -210,16 +211,18 @@ class TestData():
         return inter / union
 
     def compute_assd(self, true_mask, pred_mask):
-        pred = (pred_mask > 0.5).cpu().numpy()  # 确保数据在 CPU 上并转换为 NumPy 数组
-        target = (true_mask > 0.5).cpu().numpy()  # 确保数据在 CPU 上并转换为 NumPy 数组
+        pred = (pred_mask > 0.5).cpu().numpy()
+        target = (true_mask > 0.5).cpu().numpy()
 
-        return medpy_assd(target, pred, voxelspacing=[1.0, 1.0, 1.0])
+        # return medpy_assd(pred, target, voxelspacing=[1.0, 1.0, 1.0])
+        return medpy_assd(pred.squeeze(), target.squeeze(), voxelspacing=[1.0, 1.0])
 
     def compute_hd95(self, true_mask, pred_mask):
-        pred = (pred_mask > 0.5).cpu().numpy()  # 确保数据在 CPU 上并转换为 NumPy 数组
-        target = (true_mask > 0.5).cpu().numpy()  # 确保数据在 CPU 上并转换为 NumPy 数组
+        pred = (pred_mask > 0.5).cpu().numpy()
+        target = (true_mask > 0.5).cpu().numpy()
 
-        return medpy_hd95(target, pred, voxelspacing=[1.0, 1.0, 1.0])
+        # return medpy_hd95(pred, target, voxelspacing=[1.0, 1.0, 1.0])
+        return medpy_hd95(pred.squeeze(), target.squeeze(), voxelspacing=[1.0, 1.0])
 
     def compute_sen(self, true_mask, pred_mask):
         true_mask = true_mask > 0.5
@@ -230,7 +233,6 @@ class TestData():
         if tp + fn == 0:
             return 1.0
         return tp / (tp + fn)
-
 
 
 if __name__ == '__main__':

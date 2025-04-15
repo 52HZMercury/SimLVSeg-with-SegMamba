@@ -142,9 +142,9 @@ class SegModule(BaseModule):
             # loss_type='jaccard',
             # loss_type='hccdie',
             # loss_type='tversky',
-            # loss_type='focal'
-            # loss_type='dice+jaccard'
-            # loss_type='hccmse'
+            # loss_type='focal',
+            # loss_type='dice+jaccard',
+            # loss_type='hccmse',
             loss_type='dice+jaccard+focal',
     ):
         super().__init__()

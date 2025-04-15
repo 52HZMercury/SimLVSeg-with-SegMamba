@@ -194,6 +194,8 @@ python scripts/seg_3d/seg_3d_train.py \
 
 ## Testing
 
+### echo-dynamic test
+
 To do the testing and get the CI of your models, you have to first generate the prediction using the following:
 ```bash
 python scripts/seg_3d/seg_3d_test_get_predictions.py \
@@ -218,7 +220,34 @@ python evaluate_bootstrap_edit.py \
     --output_dir /workdir1/cn24/data/evaluation_result_dir 
 ```
 
-### CAMUS Test
+### echo-pediatric test
+
+To do the testing and get the CI of your models, you have to first generate the prediction using the following:
+```bash
+python scripts/seg_3d/seg_3d_test_get_predictions.py \
+    --data_path /workdir1/cn24/data/pediatric_echo/A4C \
+    --checkpoint /workdir1/cn24/program/SimLVSeg/lightning_logs/version_201/checkpoints/epoch=36-step=45916.ckpt \
+    --save_dir /workdir1/cn24/data/prediction_outputs_dir \
+    --mean 0.12741163 0.1279413 0.12912785 \
+    --std 0.19557191 0.19562256 0.1965878 \
+    --encoder "SegMamba" \
+    --frames 32 \
+    --period 1 \
+    --num_workers 2 \
+    --batch_size 4 \
+    --seed 42
+```
+
+Then, run the following code to get the CI for overall, ED, and ES DSC.
+```bash
+python evaluate_bootstrap_edit.py \
+    --data_dir /workdir1/cn24/data/pediatric_echo/A4C \
+    --prediction_dir /workdir1/cn24/data/prediction_outputs_dir \
+    --output_dir /workdir1/cn24/data/evaluation_result_dir 
+```
+
+
+### CAMUS test
 ```bash
 python scripts/camus/seg_3d_test_get_predictions_camus.py \
   --data_path /workdir1/cn24/data/CAMUS \

@@ -160,7 +160,7 @@ class MooreCurve:
 
         # 初始化状态
         x, y = 0, 0
-        direction = 2  # 0:东 1:北 2:西 3:南
+        direction = 0  # 0:东 1:北 2:西 3:南
         points = [(x, y)]   # 包含起点
 
         # 解析指令
@@ -997,7 +997,7 @@ class SegMamba(nn.Module):
         #     c_img = vis_img[0, c, :, :, 0]
         #     image_list.append(c_img)
         # visualizer.show_images(image_list, cmap='jet', save_path='/media/gx/code/data/cn24/program/SimLVSeg/visualization/image/att_decoder2.png')
-        #
+
         return self.out(out)
 
 
